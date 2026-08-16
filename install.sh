@@ -1918,7 +1918,9 @@ customPortFunction() {
             echoContent yellow "请输入端口[不可与BT Panel/1Panel端口相同，回车随机]"
             read -r -p "端口:" port
             if [[ -z "${port}" ]]; then
-                port=$(randomPort)
+                if ! port=$(randomPort); then
+                    read -r -p "端口:" port
+                fi
             fi
         else
             echo
@@ -1952,6 +1954,24 @@ customPortFunction() {
     fi
 }
 
+# 检测TCP端口是否占用
+tcpPortUsed() {
+    local port=$1
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn "sport = :${port}" 2>/dev/null | tail -n +2 | grep -q .
+    else
+        lsof -nP -i "tcp:${port}" 2>/dev/null | grep -q LISTEN
+    fi
+}
+# 检测UDP端口是否占用
+udpPortUsed() {
+    local port=$1
+    if command -v ss >/dev/null 2>&1; then
+        ss -lun "sport = :${port}" 2>/dev/null | tail -n +2 | grep -q .
+    else
+        lsof -nP -i "udp:${port}" 2>/dev/null | tail -n +2 | grep -q .
+    fi
+}
 # 检测端口是否占用
 checkPort() {
     local port=$1
@@ -1959,15 +1979,15 @@ checkPort() {
         return 0
     fi
     # 检查 TCP
-    if lsof -i "tcp:${port}" 2>/dev/null | grep -q LISTEN; then
+    if tcpPortUsed "${port}"; then
         echoContent red "\n ---> ${port}端口被占用，请手动关闭后安装\n"
-        lsof -i "tcp:${port}" | grep LISTEN
+        lsof -nP -i "tcp:${port}" 2>/dev/null | grep LISTEN || true
         exit 0
     fi
     # 检查 UDP
-    if lsof -i "udp:${port}" 2>/dev/null | grep -q LISTEN; then
+    if udpPortUsed "${port}"; then
         echoContent red "\n ---> ${port}端口被占用(TCP/UDP)，请手动关闭后安装\n"
-        lsof -i "udp:${port}" | grep LISTEN
+        lsof -nP -i "udp:${port}" 2>/dev/null | tail -n +2 || true
         exit 0
     fi
 }
@@ -2108,6 +2128,17 @@ randomNum() {
     fi
 }
 
+# 生成区间随机数
+randomPortNumber() {
+    local min=$1
+    local max=$2
+    local range=$((max - min + 1))
+    if command -v shuf >/dev/null 2>&1; then
+        shuf -i "${min}-${max}" -n 1
+    else
+        echo $((min + (((RANDOM << 15) | RANDOM) % range)))
+    fi
+}
 # 生成随机端口(带冲突检测重试,最多10次,TCP/UDP都检测)
 # 用法: randomPort [min] [max], 默认 10000-30000
 randomPort() {
@@ -2115,16 +2146,20 @@ randomPort() {
     local max=${2:-30000}
     local attempt=0
     local p=
+    if ! [[ "${min}" =~ ^[0-9]+$ && "${max}" =~ ^[0-9]+$ ]] || (( min > max )); then
+        echoContent red "\n ---> 随机端口范围错误：${min}-${max}\n" >&2
+        return 2
+    fi
     while (( attempt < 10 )); do
-        p=$((RANDOM % (max - min + 1) + min))
-        if ! lsof -i "tcp:${p}" 2>/dev/null | grep -q LISTEN && ! lsof -i "udp:${p}" 2>/dev/null | grep -q LISTEN; then
+        p=$(randomPortNumber "${min}" "${max}")
+        if ! tcpPortUsed "${p}" && ! udpPortUsed "${p}"; then
             echo "${p}"
             return 0
         fi
         ((attempt++))
     done
-    echoContent red "\n ---> 尝试10次仍未找到空闲端口，请手动指定\n"
-    echo "${p}"
+    echoContent red "\n ---> 尝试10次仍未找到空闲端口，请手动指定\n" >&2
+    return 1
 }
 # Nginx伪装博客
 nginxBlog() {
@@ -2331,6 +2366,18 @@ renewalTLS() {
     fi
 }
 
+# 下载文件(带超时和重试)
+downloadFile() {
+    local outputDir=$1
+    local url=$2
+    if [[ "${release}" == "alpine" ]]; then
+        wget -c -q -T 15 -P "${outputDir}" "${url}"
+    elif [[ -n "${wgetShowProgressStatus}" ]]; then
+        wget -c -q --timeout=15 --tries=3 "${wgetShowProgressStatus}" -P "${outputDir}" "${url}"
+    else
+        wget -c -q --timeout=15 --tries=3 -P "${outputDir}" "${url}"
+    fi
+}
 # 安装 sing-box
 installSingBox() {
     readInstallType
@@ -2344,17 +2391,15 @@ installSingBox() {
             version=$(curl -s --max-time 15 https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r .tag_name)
         fi
 
-        if [[ -z "${version}" ]]; then
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
             echoContent red "\n ---> sing-box版本检测失败，请检查网络后重试\n"
             return 1
         fi
 
         echoContent green " ---> 最新版本:${version}"
 
-        if [[ "${release}" == "alpine" ]]; then
-            wget -c -q -P /etc/v2a/sing-box/ "https://github.com/SagerNet/sing-box/releases/download/${version}/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"
-        else
-            wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/sing-box/ "https://github.com/SagerNet/sing-box/releases/download/${version}/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"
+        if ! downloadFile /etc/v2a/sing-box/ "https://github.com/SagerNet/sing-box/releases/download/${version}/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"; then
+            rm -f "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"
         fi
 
         if [[ ! -f "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" ]]; then
@@ -2366,7 +2411,11 @@ installSingBox() {
                 return 1
             fi
         else
-            tar zxvf "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" -C "/etc/v2a/sing-box/" >/dev/null 2>&1
+            if ! tar zxvf "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" -C "/etc/v2a/sing-box/" >/dev/null 2>&1; then
+                echoContent red "\n ---> sing-box压缩包解压失败，取消安装\n"
+                rm -rf "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}"
+                return 1
+            fi
             mv "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}/sing-box" /etc/v2a/sing-box/sing-box
             rm -rf /etc/v2a/sing-box/sing-box-*
             chmod 655 /etc/v2a/sing-box/sing-box
@@ -2380,7 +2429,7 @@ installSingBox() {
             version=$(curl -s --max-time 15 https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r .tag_name)
         fi
 
-        if [[ -z "${version}" ]]; then
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
             echoContent red "\n ---> sing-box版本检测失败，请检查网络后重试\n"
             return 1
         fi
@@ -2390,9 +2439,16 @@ installSingBox() {
         if [[ -z "${lastInstallationConfig}" ]]; then
             read -r -p "是否更新、升级？[y/n]:" reInstallSingBoxStatus
             if [[ "${reInstallSingBoxStatus}" == "y" ]]; then
-                cp /etc/v2a/sing-box/sing-box "/etc/v2a/sing-box/sing-box.bak.$(date +%s)"
+                local singBoxBackupFile=
+                singBoxBackupFile="/etc/v2a/sing-box/sing-box.bak.$(date +%s)"
+                cp /etc/v2a/sing-box/sing-box "${singBoxBackupFile}" || return 1
                 rm -f /etc/v2a/sing-box/sing-box
-                installSingBox "$1" "$2"
+                if ! installSingBox "$1" "$2"; then
+                    echoContent red "\n ---> sing-box更新失败，正在恢复旧版本\n"
+                    mv "${singBoxBackupFile}" /etc/v2a/sing-box/sing-box
+                    return 1
+                fi
+                return 0
             fi
         fi
     fi
@@ -2424,16 +2480,14 @@ installXray() {
             version=$(curl -s --max-time 15 https://api.github.com/repos/XTLS/Xray-core/releases/latest | jq -r .tag_name)
         fi
 
-        if [[ -z "${version}" ]]; then
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
             echoContent red "\n ---> Xray版本检测失败，请检查网络后重试\n"
             return 1
         fi
 
         echoContent green " ---> Xray-core版本:${version}"
-        if [[ "${release}" == "alpine" ]]; then
-            wget -c -q -P /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"
-        else
-            wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"
+        if ! downloadFile /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"; then
+            rm -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
         fi
 
         if [[ ! -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" ]]; then
@@ -2445,8 +2499,17 @@ installXray() {
                 return 1
             fi
         else
-            unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null
+            if ! unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null; then
+                echoContent red "\n ---> Xray压缩包解压失败，取消安装\n"
+                rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+                return 1
+            fi
             rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+
+            if [[ ! -f "/etc/v2a/xray/xray" ]]; then
+                echoContent red "\n ---> Xray解压后未找到可执行文件，取消安装\n"
+                return 1
+            fi
 
             version=$(curl -s --max-time 15 https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
             echoContent skyBlue "------------------------Version-------------------------------"
@@ -2468,9 +2531,16 @@ installXray() {
             echoContent green " ---> Xray-core版本:$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
             read -r -p "是否更新、升级？[y/n]:" reInstallXrayStatus
             if [[ "${reInstallXrayStatus}" == "y" ]]; then
-                cp /etc/v2a/xray/xray "/etc/v2a/xray/xray.bak.$(date +%s)"
+                local xrayBackupFile=
+                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+                cp /etc/v2a/xray/xray "${xrayBackupFile}" || return 1
                 rm -f /etc/v2a/xray/xray
-                installXray "$1" "$2"
+                if ! installXray "$1" "$2"; then
+                    echoContent red "\n ---> Xray更新失败，正在恢复旧版本\n"
+                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    return 1
+                fi
+                return 0
             fi
         fi
     fi
@@ -2556,30 +2626,28 @@ updateGeoSite() {
 # 更新Xray
 updateXray() {
     readInstallType
+    local xrayBackupFile=
+    local currentVersion=
 
     if [[ -z "${coreInstallType}" || "${coreInstallType}" != "1" ]]; then
-
-        if [[ "${prereleaseStatus}" == "true" ]]; then
+        # 指定版本时直接使用，避免无谓的版本检测请求
+        if [[ -n "$1" ]]; then
+            version=$1
+        elif [[ "${prereleaseStatus}" == "true" ]]; then
             version=$(curl -s --max-time 15 "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
         else
             version=$(curl -s --max-time 15 https://api.github.com/repos/XTLS/Xray-core/releases/latest | jq -r .tag_name)
         fi
 
-        if [[ -n "$1" ]]; then
-            version=$1
-        fi
-
-        if [[ -z "${version}" ]]; then
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
             echoContent red "\n ---> Xray版本检测失败，请检查网络后重试\n"
             return 1
         fi
 
         echoContent green " ---> Xray-core版本:${version}"
 
-        if [[ "${release}" == "alpine" ]]; then
-            wget -c -q -P /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"
-        else
-            wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"
+        if ! downloadFile /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"; then
+            rm -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
         fi
 
         if [[ ! -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" ]]; then
@@ -2587,53 +2655,99 @@ updateXray() {
             return 1
         fi
 
-        cp /etc/v2a/xray/xray "/etc/v2a/xray/xray.bak.$(date +%s)"
-        unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null
+        # 只有在旧二进制仍存在时才需要备份；更新流程在递归调用前已经备份并删除
+        if [[ -f "/etc/v2a/xray/xray" ]]; then
+            xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+            if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                echoContent red "\n ---> Xray旧版本备份失败，取消更新\n"
+                rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+                return 1
+            fi
+        fi
+
+        if ! unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null; then
+            echoContent red "\n ---> Xray压缩包解压失败，取消更新\n"
+            rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+            if [[ -n "${xrayBackupFile}" && -f "${xrayBackupFile}" ]]; then
+                mv "${xrayBackupFile}" /etc/v2a/xray/xray
+            fi
+            return 1
+        fi
         rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+
+        if [[ ! -f "/etc/v2a/xray/xray" ]]; then
+            echoContent red "\n ---> Xray解压后未找到可执行文件，取消更新\n"
+            if [[ -n "${xrayBackupFile}" && -f "${xrayBackupFile}" ]]; then
+                mv "${xrayBackupFile}" /etc/v2a/xray/xray
+            fi
+            return 1
+        fi
+
         chmod 655 /etc/v2a/xray/xray
         handleXray stop
         handleXray start
     else
-        echoContent green " ---> 当前版本:v$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+        currentVersion="v$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+        echoContent green " ---> 当前版本:${currentVersion}"
 
-        if [[ "${prereleaseStatus}" == "true" ]]; then
-            remoteVersion=$(curl -s --max-time 15 "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
-        else
-            remoteVersion=$(curl -s --max-time 15 https://api.github.com/repos/XTLS/Xray-core/releases/latest | jq -r .tag_name)
-        fi
-
-        if [[ -z "${remoteVersion}" ]]; then
-            echoContent red "\n ---> Xray版本检测失败，请检查网络后重试\n"
-            return 1
-        fi
-
-        echoContent green " ---> 最新版本:${remoteVersion}"
-
+        # 回退时版本号已由参数提供，不应依赖网络
         if [[ -n "$1" ]]; then
             version=$1
         else
+            if [[ "${prereleaseStatus}" == "true" ]]; then
+                remoteVersion=$(curl -s --max-time 15 "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
+            else
+                remoteVersion=$(curl -s --max-time 15 https://api.github.com/repos/XTLS/Xray-core/releases/latest | jq -r .tag_name)
+            fi
+
+            if [[ -z "${remoteVersion}" || "${remoteVersion}" == "null" ]]; then
+                echoContent red "\n ---> Xray版本检测失败，请检查网络后重试\n"
+                return 1
+            fi
+
+            echoContent green " ---> 最新版本:${remoteVersion}"
             version=${remoteVersion}
         fi
 
         if [[ -n "$1" ]]; then
             read -r -p "回退版本为${version}，是否继续？[y/n]:" rollbackXrayStatus
             if [[ "${rollbackXrayStatus}" == "y" ]]; then
-                echoContent green " ---> 当前Xray-core版本:$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+                echoContent green " ---> 当前Xray-core版本:${currentVersion}"
 
                 handleXray stop
-                cp /etc/v2a/xray/xray "/etc/v2a/xray/xray.bak.$(date +%s)"
+                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                    echoContent red "\n ---> Xray旧版本备份失败，取消回退\n"
+                    handleXray start
+                    return 1
+                fi
                 rm -f /etc/v2a/xray/xray
-                updateXray "${version}"
+                if ! updateXray "${version}"; then
+                    echoContent red "\n ---> Xray回退失败，正在恢复旧版本\n"
+                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    handleXray start
+                    return 1
+                fi
             else
                 echoContent green " ---> 放弃回退版本"
             fi
-        elif [[ "${version}" == "v$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)" ]]; then
+        elif [[ "${version}" == "${currentVersion}" ]]; then
             read -r -p "当前版本与最新版相同，是否重新安装？[y/n]:" reInstallXrayStatus
             if [[ "${reInstallXrayStatus}" == "y" ]]; then
                 handleXray stop
-                cp /etc/v2a/xray/xray "/etc/v2a/xray/xray.bak.$(date +%s)"
+                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                    echoContent red "\n ---> Xray旧版本备份失败，取消重装\n"
+                    handleXray start
+                    return 1
+                fi
                 rm -f /etc/v2a/xray/xray
-                updateXray
+                if ! updateXray; then
+                    echoContent red "\n ---> Xray重装失败，正在恢复旧版本\n"
+                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    handleXray start
+                    return 1
+                fi
             else
                 echoContent green " ---> 放弃重新安装"
             fi
@@ -2641,9 +2755,19 @@ updateXray() {
             read -r -p "最新版本为:${version}，是否更新？[y/n]:" installXrayStatus
             if [[ "${installXrayStatus}" == "y" ]]; then
                 handleXray stop
-                cp /etc/v2a/xray/xray "/etc/v2a/xray/xray.bak.$(date +%s)"
-                rm /etc/v2a/xray/xray
-                updateXray
+                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                    echoContent red "\n ---> Xray旧版本备份失败，取消更新\n"
+                    handleXray start
+                    return 1
+                fi
+                rm -f /etc/v2a/xray/xray
+                if ! updateXray; then
+                    echoContent red "\n ---> Xray更新失败，正在恢复旧版本\n"
+                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    handleXray start
+                    return 1
+                fi
             else
                 echoContent green " ---> 放弃更新"
             fi
@@ -2651,7 +2775,6 @@ updateXray() {
         fi
     fi
 }
-
 # 验证整个服务是否可用
 checkGFWStatue() {
     readInstallType
@@ -3063,7 +3186,9 @@ initHysteriaPort() {
         echoContent yellow "请输入Hysteria端口[回车随机10000-30000]，不可与其他服务重复"
         read -r -p "端口:" hysteriaPort
         if [[ -z "${hysteriaPort}" ]]; then
-            hysteriaPort=$(randomPort)
+            if ! hysteriaPort=$(randomPort); then
+                read -r -p "端口:" hysteriaPort
+            fi
         fi
     fi
     if [[ -z ${hysteriaPort} ]]; then
@@ -3287,7 +3412,9 @@ initTuicPort() {
         echoContent yellow "请输入Tuic端口[回车随机10000-30000]，不可与其他服务重复"
         read -r -p "端口:" tuicPort
         if [[ -z "${tuicPort}" ]]; then
-            tuicPort=$(randomPort)
+            if ! tuicPort=$(randomPort); then
+                read -r -p "端口:" tuicPort
+            fi
         fi
     fi
     if [[ -z ${tuicPort} ]]; then
@@ -3789,7 +3916,7 @@ singBoxTuicInstall() {
     fi
 
     totalProgress=5
-    installSingBox 1
+    installSingBox 1 || return 1
     selectCustomInstallType=",9,"
     initSingBoxConfig custom 2 true
     installSingBoxService 3
@@ -3805,7 +3932,7 @@ singBoxHysteria2Install() {
     fi
 
     totalProgress=5
-    installSingBox 1
+    installSingBox 1 || return 1
     selectCustomInstallType=",6,"
     initSingBoxConfig custom 2 true
     installSingBoxService 3
@@ -3896,7 +4023,9 @@ initSingBoxPort() {
     if [[ -z "${port}" ]]; then
         read -r -p '请输入自定义端口[需合法]，端口不可重复，[回车]随机端口:' port
         if [[ -z "${port}" ]]; then
-            port=$(randomPort 10000 60000)
+            if ! port=$(randomPort 10000 60000); then
+                read -r -p '请输入自定义端口[需合法]，端口不可重复:' port
+            fi
         fi
         if ((port >= 1 && port <= 65535)); then
             allowPort "${port}"
@@ -7595,7 +7724,7 @@ socks5InboundRoutingMenu() {
     case ${selectType} in
     1)
         totalProgress=1
-        installSingBox 1
+        installSingBox 1 || return 1
         installSingBoxService 1
         setSocks5Inbound
         setSocks5InboundRouting
@@ -8490,7 +8619,7 @@ customSingBoxInstall() {
             handleNginx stop
         fi
 
-        installSingBox 4
+        installSingBox 4 || return 1
         installSingBoxService 5
         initSingBoxConfig custom 6
         cleanUp xrayDel
@@ -8519,7 +8648,7 @@ installXrayReality() {
     handleNginx stop
 
     # 安装Xray
-    installXray 2 false
+    installXray 2 false || return 1
     installXrayService 3
     initXrayConfig custom 4
     cleanUp singBoxDel
@@ -8539,7 +8668,7 @@ installSingBoxReality() {
     totalProgress=6
     installTools 1
 
-    installSingBox 2
+    installSingBox 2 || return 1
     installSingBoxService 3
     initSingBoxConfig custom 4
     cleanUp xrayDel
@@ -8624,7 +8753,7 @@ customXrayInstall() {
         fi
 
         # 安装Xray
-        installXray 7 false
+        installXray 7 false || return 1
         installXrayService 8
         initXrayConfig custom 9
         cleanUp singBoxDel
@@ -8701,7 +8830,7 @@ xrayCoreInstall() {
     randomPathFunction 5
 
     # 安装Xray
-    installXray 6 false
+    installXray 6 false || return 1
     installXrayService 7
     initXrayConfig all 8
     cleanUp singBoxDel
@@ -8745,7 +8874,7 @@ singBoxInstall() {
 
     handleNginx stop
 
-    installSingBox 5
+    installSingBox 5 || return 1
     installSingBoxService 6
     initSingBoxConfig all 7
 
@@ -9807,7 +9936,9 @@ initXrayRealityPort() {
 
         read -r -p "端口:" realityPort
         if [[ -z "${realityPort}" ]]; then
-            realityPort=$(randomPort)
+            if ! realityPort=$(randomPort); then
+                read -r -p "端口:" realityPort
+            fi
         fi
         #        fi
         if [[ -n "${realityPort}" && "${xrayVLESSRealityPort}" == "${realityPort}" ]]; then
@@ -9840,7 +9971,9 @@ initXrayXHTTPort() {
         echoContent yellow "请输入端口[回车随机10000-30000]"
         read -r -p "端口:" xHTTPort
         if [[ -z "${xHTTPort}" ]]; then
-            xHTTPort=$(randomPort)
+            if ! xHTTPort=$(randomPort); then
+                read -r -p "端口:" xHTTPort
+            fi
         fi
         if [[ -n "${xHTTPort}" && "${xrayVLESSRealityXHTTPort}" == "${xHTTPort}" ]]; then
             handleXray stop
@@ -10034,7 +10167,7 @@ singBoxVersionManageMenu() {
         touch "${singBoxConfigPath}../box.log" >/dev/null 2>&1
     fi
     if [[ "${selectSingBoxType}" == "1" ]]; then
-        installSingBox 1
+        installSingBox 1 || return 1
         handleSingBox stop
         handleSingBox start
     elif [[ "${selectSingBoxType}" == "2" ]]; then
