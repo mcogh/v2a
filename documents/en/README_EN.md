@@ -28,7 +28,7 @@ Xray-core/sing-box One-click Quick Install Script
 ### Installation
 
 ```
-bash wget -P /root -N --no-check-certificate "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh" && chmod 700 /root/install.sh && /root/install.sh
+wget -P /root -N "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh" && chmod 700 /root/install.sh && /root/install.sh
 ```
 
 ### Usage

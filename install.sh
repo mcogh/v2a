@@ -32,6 +32,39 @@ echoContent() {
         ;;
     esac
 }
+# URL解码(仅处理脚本内已做百分号编码的链接)
+urlDecode() {
+    local encoded=$1
+    local decoded=${encoded//+/ }
+    decoded=${decoded//"%25"/"%"}
+    decoded=${decoded//"%3A"/":"}
+    decoded=${decoded//"%3a"/":"}
+    decoded=${decoded//"%2F"/"/"}
+    decoded=${decoded//"%2f"/"/"}
+    decoded=${decoded//"%40"/"@"}
+    decoded=${decoded//"%3F"/"?"}
+    decoded=${decoded//"%26"/"&"}
+    decoded=${decoded//"%23"/"#"}
+    decoded=${decoded//"%3D"/"="}
+    decoded=${decoded//"%3d"/"="}
+    decoded=${decoded//"%2B"/"+"}
+    echo "${decoded}"
+}
+# 本地生成二维码，不依赖第三方在线二维码服务
+showQRCode() {
+    local qrData=$1
+    if command -v qrencode >/dev/null 2>&1; then
+        echo "${qrData}" | qrencode -s 6 -m 1 -t UTF8
+    else
+        echoContent yellow " ---> qrencode未安装，无法生成二维码，请复制链接手动生成\n"
+    fi
+}
+# 兼容旧的 api.qrserver.com 二维码链接并转为本地生成
+showQRCodeFromAPIURL() {
+    local apiURL=$1
+    local data=${apiURL#*data=}
+    showQRCode "$(urlDecode "${data}")"
+}
 # 检查SELinux状态
 checkCentosSELinux() {
     if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" == "Enforcing" ]; then
@@ -1270,7 +1303,18 @@ installTools() {
     else
         if [[ ! -d "$HOME/.acme.sh" ]] || [[ -d "$HOME/.acme.sh" && -z $(find "$HOME/.acme.sh/acme.sh") ]]; then
             echoContent green " ---> 安装acme.sh"
-            curl -s https://get.acme.sh | sh >/etc/v2a/tls/acme.log 2>&1
+            local acmeInstallScript="/tmp/acme.sh.install.$$"
+            if ! curl -fsSL --proto '=https' --tlsv1.2 --max-time 120 https://get.acme.sh -o "${acmeInstallScript}"; then
+                echoContent red "  acme.sh安装脚本下载失败\n"
+                return 1
+            fi
+            if [[ ! -s "${acmeInstallScript}" ]]; then
+                echoContent red "  acme.sh安装脚本为空\n"
+                rm -f "${acmeInstallScript}"
+                return 1
+            fi
+            sh "${acmeInstallScript}" >/etc/v2a/tls/acme.log 2>&1
+            rm -f "${acmeInstallScript}"
 
             if [[ ! -d "$HOME/.acme.sh" ]] || [[ -z $(find "$HOME/.acme.sh/acme.sh") ]]; then
                 echoContent red "  acme安装失败--->"
@@ -2394,6 +2438,81 @@ downloadFile() {
         wget -c -q --timeout=15 --tries=3 -P "${outputDir}" "${url}"
     fi
 }
+# 计算文件SHA256
+verifySha256() {
+    local file=$1
+    local expected=$2
+    local actual=
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "${file}" | awk '{print $1}')
+    elif command -v openssl >/dev/null 2>&1; then
+        actual=$(openssl dgst -sha256 "${file}" | awk '{print $NF}')
+    else
+        echoContent red "\n ---> 未找到sha256sum/openssl，无法校验文件完整性\n"
+        return 1
+    fi
+    [[ -n "${expected}" && "${actual}" == "${expected}" ]]
+}
+# 校验 GitHub release 的 .dgst 文件中的 SHA2-256
+verifyDgstFile() {
+    local archive=$1
+    local digestFile=$2
+    local expected=
+    expected=$(grep '^SHA2-256=' "${digestFile}" 2>/dev/null | head -1 | awk -F '= ' '{print $2}' | tr -d '\r')
+    if [[ -z "${expected}" ]]; then
+        echoContent red "\n ---> 校验文件格式错误：${digestFile}\n"
+        return 1
+    fi
+    if ! verifySha256 "${archive}" "${expected}"; then
+        echoContent red "\n ---> ${archive} SHA256校验失败，已取消安装，请勿继续使用\n"
+        rm -f "${archive}" "${digestFile}"
+        return 1
+    fi
+    rm -f "${digestFile}"
+}
+# 下载并校验Xray-core
+downloadXrayCore() {
+    local version=$1
+    local archive="${xrayCoreCPUVendor}.zip"
+    local dir="/etc/v2a/xray"
+    if ! downloadFile "${dir}" "https://github.com/XTLS/Xray-core/releases/download/${version}/${archive}"; then
+        rm -f "${dir}/${archive}"
+        return 1
+    fi
+    if [[ ! -f "${dir}/${archive}" ]]; then
+        return 1
+    fi
+    if ! downloadFile "${dir}" "https://github.com/XTLS/Xray-core/releases/download/${version}/${archive}.dgst"; then
+        echoContent red "\n ---> Xray-core校验文件下载失败，已取消安装\n"
+        rm -f "${dir}/${archive}"
+        return 1
+    fi
+    verifyDgstFile "${dir}/${archive}" "${dir}/${archive}.dgst"
+}
+# 下载并校验geo数据
+downloadGeoData() {
+    local version=$1
+    local targetDir=$2
+    local geoFile=
+    local expected=
+    for geoFile in geosite.dat geoip.dat; do
+        if ! downloadFile "${targetDir}" "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/${geoFile}"; then
+            echoContent red "\n ---> ${geoFile}下载失败\n"
+            return 1
+        fi
+        if ! downloadFile "${targetDir}" "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/${geoFile}.sha256sum"; then
+            echoContent red "\n ---> ${geoFile}.sha256sum下载失败\n"
+            return 1
+        fi
+        expected=$(awk '{print $1}' "${targetDir}/${geoFile}.sha256sum")
+        if ! verifySha256 "${targetDir}/${geoFile}" "${expected}"; then
+            echoContent red "\n ---> ${geoFile} SHA256校验失败\n"
+            rm -f "${targetDir}/${geoFile}" "${targetDir}/${geoFile}.sha256sum"
+            return 1
+        fi
+        rm -f "${targetDir}/${geoFile}.sha256sum"
+    done
+}
 # 安装 sing-box
 installSingBox() {
     readInstallType
@@ -2502,7 +2621,7 @@ installXray() {
         fi
 
         echoContent green " ---> Xray-core版本:${version}"
-        if ! downloadFile /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"; then
+        if ! downloadXrayCore "${version}"; then
             rm -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
         fi
 
@@ -2528,16 +2647,16 @@ installXray() {
             fi
 
             version=$(curl -s --max-time 15 https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
+            if [[ -z "${version}" || "${version}" == "null" ]]; then
+                echoContent red "\n ---> geo数据版本检测失败\n"
+                return 1
+            fi
             echoContent skyBlue "------------------------Version-------------------------------"
             echo "version:${version}"
             rm /etc/v2a/xray/geo* >/dev/null 2>&1
 
-            if [[ "${release}" == "alpine" ]]; then
-                wget -c -q -P /etc/v2a/xray/ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geosite.dat"
-                wget -c -q -P /etc/v2a/xray/ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geoip.dat"
-            else
-                wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geosite.dat"
-                wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geoip.dat"
+            if ! downloadGeoData "${version}" /etc/v2a/xray; then
+                return 1
             fi
 
             chmod 655 /etc/v2a/xray/xray
@@ -2621,17 +2740,17 @@ xrayVersionManageMenu() {
 updateGeoSite() {
     echoContent yellow "\n来源 https://github.com/Loyalsoldier/v2ray-rules-dat"
 
-    version=$(curl -s https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
+    version=$(curl -s --max-time 15 https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
+    if [[ -z "${version}" || "${version}" == "null" ]]; then
+        echoContent red "\n ---> geo数据版本检测失败\n"
+        return 1
+    fi
     echoContent skyBlue "------------------------Version-------------------------------"
     echo "version:${version}"
     rm ${configPath}../geo* >/dev/null
 
-    if [[ "${release}" == "alpine" ]]; then
-        wget -c -q -P ${configPath}../ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geosite.dat"
-        wget -c -q -P ${configPath}../ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geoip.dat"
-    else
-        wget -c -q "${wgetShowProgressStatus}" -P ${configPath}../ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geosite.dat"
-        wget -c -q "${wgetShowProgressStatus}" -P ${configPath}../ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geoip.dat"
+    if ! downloadGeoData "${version}" "${configPath}../"; then
+        return 1
     fi
 
     reloadCore
@@ -2662,12 +2781,12 @@ updateXray() {
 
         echoContent green " ---> Xray-core版本:${version}"
 
-        if ! downloadFile /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"; then
+        if ! downloadXrayCore "${version}"; then
             rm -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
         fi
 
         if [[ ! -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" ]]; then
-            echoContent red "\n ---> Xray核心下载失败，取消更新\n"
+            echoContent red "\n ---> Xray核心下载或校验失败，取消更新\n"
             return 1
         fi
 
@@ -5039,7 +5158,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 VLESS(VLESS+TCP+TLS_Vision)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${port}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${port}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}"
 
     elif [[ "${type}" == "vmessws" ]]; then
         qrCodeBase64Default=$(echo -n "{\"port\":${port},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"${path}\",\"net\":\"ws\",\"add\":\"${add}\",\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}" | base64 -w 0)
@@ -5076,7 +5195,7 @@ EOF
 
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}"
 
     elif [[ "${type}" == "vlessws" ]]; then
 
@@ -5110,7 +5229,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 VLESS(VLESS+WS+TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dws%26host%3D${currentHost}%26fp%3Dchrome%26sni%3D${currentHost}%26path%3D${path}%23${email}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dws%26host%3D${currentHost}%26fp%3Dchrome%26sni%3D${currentHost}%26path%3D${path}%23${email}"
 
     elif [[ "${type}" == "vlessXHTTP" ]]; then
 
@@ -5145,7 +5264,7 @@ EOF
 EOF
 
         echoContent yellow " ---> 二维码 VLESS(VLESS+reality+XHTTP)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dxhttp%26sni%3D${xrayVLESSRealityXHTTPServerName}%26fp%3Dchrome%26path%3D${path}%26host%3D${xrayVLESSRealityXHTTPServerName}%26pbk%3D${currentRealityXHTTPPublicKey}%26sid%3D6ba85179e30d4fc2%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dxhttp%26sni%3D${xrayVLESSRealityXHTTPServerName}%26fp%3Dchrome%26path%3D${path}%26host%3D${xrayVLESSRealityXHTTPServerName}%26pbk%3D${currentRealityXHTTPPublicKey}%26sid%3D6ba85179e30d4fc2%23${email}"
 
     elif
         [[ "${type}" == "vlessgrpc" ]]
@@ -5179,7 +5298,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 VLESS(VLESS+gRPC+TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dgrpc%26host%3D${currentHost}%26serviceName%3D${currentPath}grpc%26fp%3Dchrome%26path%3D${currentPath}grpc%26sni%3D${currentHost}%26alpn%3Dh2%23${email}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dgrpc%26host%3D${currentHost}%26serviceName%3D${currentPath}grpc%26fp%3Dchrome%26path%3D${currentPath}grpc%26sni%3D${currentHost}%26alpn%3Dh2%23${email}"
 
     elif [[ "${type}" == "trojan" ]]; then
         # URLEncode
@@ -5204,7 +5323,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 Trojan(TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${currentHost}%3a${port}%3fpeer%3d${currentHost}%26fp%3Dchrome%26sni%3d${currentHost}%26alpn%3Dhttp/1.1%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${currentHost}%3a${port}%3fpeer%3d${currentHost}%26fp%3Dchrome%26sni%3d${currentHost}%26alpn%3Dhttp/1.1%23${email}"
 
     elif [[ "${type}" == "trojangrpc" ]]; then
         # URLEncode
@@ -5231,7 +5350,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 Trojan gRPC(TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${add}%3a${port}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26peer%3d${currentHost}%26type%3Dgrpc%26sni%3d${currentHost}%26path%3D${currentPath}trojangrpc%26alpn%3Dh2%26serviceName%3D${currentPath}trojangrpc%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${add}%3a${port}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26peer%3d${currentHost}%26type%3Dgrpc%26sni%3d${currentHost}%26path%3D${currentPath}trojangrpc%26alpn%3Dh2%26serviceName%3D${currentPath}trojangrpc%23${email}"
 
     elif [[ "${type}" == "hysteria" ]]; then
         echoContent yellow " ---> Hysteria(TLS)"
@@ -5268,7 +5387,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 Hysteria2(TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=hysteria2%3A%2F%2F${id}%40${currentHost}%3A${singBoxHysteria2Port}%3F${multiPortEncode}peer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%26alpn%3Dh3%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=hysteria2%3A%2F%2F${id}%40${currentHost}%3A${singBoxHysteria2Port}%3F${multiPortEncode}peer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%26alpn%3Dh3%23${email}"
 
     elif [[ "${type}" == "vlessReality" ]]; then
         local realityServerName=${xrayVLESSRealityServerName}
@@ -5308,7 +5427,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 VLESS(VLESS+reality+uTLS+Vision)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26sni%3D${realityServerName}%26fp%3Dchrome%26pbk%3D${publicKey}%26sid%3D6ba85179e30d4fc2%26flow%3Dxtls-rprx-vision%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26sni%3D${realityServerName}%26fp%3Dchrome%26pbk%3D${publicKey}%26sid%3D6ba85179e30d4fc2%26flow%3Dxtls-rprx-vision%23${email}"
 
     elif [[ "${type}" == "vlessRealityGRPC" ]]; then
         local realityServerName=${xrayVLESSRealityServerName}
@@ -5352,7 +5471,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 VLESS(VLESS+reality+uTLS+gRPC)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dgrpc%26sni%3D${realityServerName}%26fp%3Dchrome%26pbk%3D${publicKey}%26sid%3D6ba85179e30d4fc2%26path%3Dgrpc%26serviceName%3Dgrpc%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dgrpc%26sni%3D${realityServerName}%26fp%3Dchrome%26pbk%3D${publicKey}%26sid%3D6ba85179e30d4fc2%26path%3Dgrpc%26serviceName%3Dgrpc%23${email}"
     elif [[ "${type}" == "tuic" ]]; then
         local tuicUUID=
         tuicUUID=$(echo "${id}" | awk -F "[_]" '{print $1}')
@@ -5393,7 +5512,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow "\n ---> 二维码 Tuic"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=tuic%3A%2F%2F${tuicUUID}%3A${tuicPassword}%40${currentHost}%3A${tuicPort}%3Fcongestion_control%3D${tuicAlgorithm}%26alpn%3Dh3%26sni%3D${currentHost}%26udp_relay_mode%3Dquic%26allow_insecure%3D0%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=tuic%3A%2F%2F${tuicUUID}%3A${tuicPassword}%40${currentHost}%3A${tuicPort}%3Fcongestion_control%3D${tuicAlgorithm}%26alpn%3Dh3%26sni%3D${currentHost}%26udp_relay_mode%3Dquic%26allow_insecure%3D0%23${email}"
     elif [[ "${type}" == "naive" ]]; then
         echoContent yellow " ---> Naive(TLS)"
 
@@ -5402,7 +5521,7 @@ EOF
 naive+https://${email}:${id}@${currentHost}:${port}?padding=true#${email}
 EOF
         echoContent yellow " ---> 二维码 Naive(TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=naive%2Bhttps%3A%2F%2F${email}%3A${id}%40${currentHost}%3A${port}%3Fpadding%3Dtrue%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=naive%2Bhttps%3A%2F%2F${email}%3A${id}%40${currentHost}%3A${port}%3Fpadding%3Dtrue%23${email}"
     elif [[ "${type}" == "vmessHTTPUpgrade" ]]; then
         qrCodeBase64Default=$(echo -n "{\"port\":${port},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"${path}\",\"net\":\"httpupgrade\",\"add\":\"${add}\",\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}" | base64 -w 0)
         qrCodeBase64Default="${qrCodeBase64Default// /}"
@@ -5439,7 +5558,7 @@ EOF
 
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}"
 
     elif [[ "${type}" == "anytls" ]]; then
         echoContent yellow " ---> AnyTLS"
@@ -5469,7 +5588,7 @@ EOF
         echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> 二维码 AnyTLS"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=anytls%3A%2F%2F${id}%40${currentHost}%3A${singBoxAnyTLSPort}%3Fpeer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=anytls%3A%2F%2F${id}%40${currentHost}%3A${singBoxAnyTLSPort}%3Fpeer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%23${email}"
     fi
 
 }
@@ -6492,10 +6611,9 @@ removeUser() {
 updateV2RayAgent() {
     echoContent skyBlue "\n进度  $1/${totalProgress} : 更新v2a脚本"
     rm -rf /etc/v2a/install.sh
-    if [[ "${release}" == "alpine" ]]; then
-        wget -c -q -P /etc/v2a/ -N --no-check-certificate "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"
-    else
-        wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/ -N --no-check-certificate "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"
+    if ! downloadFile /etc/v2a/ "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"; then
+        echoContent red "\n ---> 脚本更新下载失败，请检查网络后重试\n"
+        return 1
     fi
 
     sudo chmod 700 /etc/v2a/install.sh
@@ -6506,7 +6624,7 @@ updateV2RayAgent() {
     echoContent yellow " ---> 请手动执行[vasma]打开脚本"
     echoContent green " ---> 当前版本：${version}\n"
     echoContent yellow "如更新不成功，请手动执行下面命令\n"
-    echoContent skyBlue "wget -P /root -N --no-check-certificate https://raw.githubusercontent.com/mcogh/v2a/master/install.sh && chmod 700 /root/install.sh && /root/install.sh"
+    echoContent skyBlue "wget -P /root -N https://raw.githubusercontent.com/mcogh/v2a/master/install.sh && chmod 700 /root/install.sh && /root/install.sh"
     echo
     exit 0
 }
@@ -6536,7 +6654,24 @@ bbrInstall() {
     echoContent red "=============================================================="
     read -r -p "请选择:" installBBRStatus
     if [[ "${installBBRStatus}" == "1" ]]; then
-        wget -O tcpx.sh "https://github.com/ylx2016/Linux-NetSpeed/raw/master/tcpx.sh" && chmod +x tcpx.sh && ./tcpx.sh
+        read -r -p "将从第三方仓库 ylx2016/Linux-NetSpeed 下载并执行 tcpx.sh，是否继续？[y/n]:" installBBRScriptStatus
+        if [[ "${installBBRScriptStatus}" != "y" ]]; then
+            menu
+            return
+        fi
+        rm -f /tmp/tcpx.sh
+        if ! wget -q --timeout=15 --tries=3 -O /tmp/tcpx.sh "https://github.com/ylx2016/Linux-NetSpeed/raw/master/tcpx.sh"; then
+            echoContent red "\n ---> tcpx.sh下载失败，已取消执行\n"
+            return 1
+        fi
+        if [[ ! -s /tmp/tcpx.sh ]]; then
+            echoContent red "\n ---> tcpx.sh为空，已取消执行\n"
+            rm -f /tmp/tcpx.sh
+            return 1
+        fi
+        chmod 700 /tmp/tcpx.sh
+        /tmp/tcpx.sh
+        rm -f /tmp/tcpx.sh
     else
         menu
     fi
@@ -9606,10 +9741,7 @@ subscribe() {
                     echoContent skyBlue "\n----------默认订阅----------\n"
                     echoContent green "email:${email}\n"
                     echoContent yellow "url:${subscribeType}://${currentDomain}/s/default/${emailMd5}\n"
-                    echoContent yellow "在线二维码:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${subscribeType}://${currentDomain}/s/default/${emailMd5}\n"
-                    if [[ "${release}" != "alpine" ]]; then
-                        echo "${subscribeType}://${currentDomain}/s/default/${emailMd5}" | qrencode -s 10 -m 1 -t UTF8
-                    fi
+                    showQRCode "${subscribeType}://${currentDomain}/s/default/${emailMd5}"
 
                     # clashMeta
                     if [[ -f "/etc/v2a/subscribe_local/clashMeta/${email}" ]]; then
@@ -9622,10 +9754,7 @@ subscribe() {
                         clashMetaConfig "${clashProxyUrl}" "${emailMd5}"
                         echoContent skyBlue "\n----------clashMeta订阅----------\n"
                         echoContent yellow "url:${subscribeType}://${currentDomain}/s/clashMetaProfiles/${emailMd5}\n"
-                        echoContent yellow "在线二维码:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${subscribeType}://${currentDomain}/s/clashMetaProfiles/${emailMd5}\n"
-                        if [[ "${release}" != "alpine" ]]; then
-                            echo "${subscribeType}://${currentDomain}/s/clashMetaProfiles/${emailMd5}" | qrencode -s 10 -m 1 -t UTF8
-                        fi
+                        showQRCode "${subscribeType}://${currentDomain}/s/clashMetaProfiles/${emailMd5}"
 
                     fi
                     # sing-box
@@ -9644,10 +9773,7 @@ subscribe() {
 
                         echoContent skyBlue "\n----------sing-box订阅----------\n"
                         echoContent yellow "url:${subscribeType}://${currentDomain}/s/sing-box/${emailMd5}\n"
-                        echoContent yellow "在线二维码:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${subscribeType}://${currentDomain}/s/sing-box/${emailMd5}\n"
-                        if [[ "${release}" != "alpine" ]]; then
-                            echo "${subscribeType}://${currentDomain}/s/sing-box/${emailMd5}" | qrencode -s 10 -m 1 -t UTF8
-                        fi
+                        showQRCode "${subscribeType}://${currentDomain}/s/sing-box/${emailMd5}"
 
                     fi
 
@@ -10208,8 +10334,8 @@ singBoxVersionManageMenu() {
 menu() {
     cd "$HOME" || exit
     echoContent red "\n=============================================================="
-    echoContent green "作者：upstream"
-    echoContent green "当前版本：v3.5.20"
+    echoContent green "作者：upstream / fork: mcogh"
+    echoContent green "当前版本：v3.5.21"
     echoContent green "Github：https://github.com/mcogh/v2a"
     echoContent green "描述：八合一共存脚本\c"
     showInstallStatus

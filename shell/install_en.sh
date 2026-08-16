@@ -32,6 +32,39 @@ echoContent() {
         ;;
     esac
 }
+# URL decoding for the legacy percent-encoded api.qrserver.com links
+urlDecode() {
+    local encoded=$1
+    local decoded=${encoded//+/ }
+    decoded=${decoded//"%25"/"%"}
+    decoded=${decoded//"%3A"/":"}
+    decoded=${decoded//"%3a"/":"}
+    decoded=${decoded//"%2F"/"/"}
+    decoded=${decoded//"%2f"/"/"}
+    decoded=${decoded//"%40"/"@"}
+    decoded=${decoded//"%3F"/"?"}
+    decoded=${decoded//"%26"/"&"}
+    decoded=${decoded//"%23"/"#"}
+    decoded=${decoded//"%3D"/"="}
+    decoded=${decoded//"%3d"/"="}
+    decoded=${decoded//"%2B"/"+"}
+    echo "${decoded}"
+}
+# Generate QR codes locally, without third-party online services
+showQRCode() {
+    local qrData=$1
+    if command -v qrencode >/dev/null 2>&1; then
+        echo "${qrData}" | qrencode -s 6 -m 1 -t UTF8
+    else
+        echoContent yellow " ---> qrencode is not installed, please copy the link and generate a QR code manually\n"
+    fi
+}
+# Convert legacy api.qrserver.com links to local QR generation
+showQRCodeFromAPIURL() {
+    local apiURL=$1
+    local data=${apiURL#*data=}
+    showQRCode "$(urlDecode "${data}")"
+}
 # Check SELinux status
 checkCentosSELinux() {
     if [[ -f "/etc/selinux/config" ]] && ! grep -q "SELINUX=disabled" <"/etc/selinux/config"; then
@@ -918,7 +951,18 @@ installTools() {
     else
         if [[ ! -d "$HOME/.acme.sh" ]] || [[ -d "$HOME/.acme.sh" && -z $(find "$HOME/.acme.sh/acme.sh") ]]; then
             echoContent green " ---> Install acme.sh"
-            curl -s https://get.acme.sh | sh >/etc/v2a/tls/acme.log 2>&1
+            local acmeInstallScript="/tmp/acme.sh.install.$$"
+            if ! curl -fsSL --proto '=https' --tlsv1.2 --max-time 120 https://get.acme.sh -o "${acmeInstallScript}"; then
+                echoContent red "  Failed to download acme.sh installer\n"
+                return 1
+            fi
+            if [[ ! -s "${acmeInstallScript}" ]]; then
+                echoContent red "  acme.sh installer is empty\n"
+                rm -f "${acmeInstallScript}"
+                return 1
+            fi
+            sh "${acmeInstallScript}" >/etc/v2a/tls/acme.log 2>&1
+            rm -f "${acmeInstallScript}"
 
             if [[ ! -d "$HOME/.acme.sh" ]] || [[ -z $(find "$HOME/.acme.sh/acme.sh") ]]; then
                 echoContent red "acme installation failed--->"
@@ -1503,7 +1547,9 @@ customPortFunction() {
             echoContent yellow "Please enter the port [cannot be the same as the BT Panel port, press Enter to be random]"
             read -r -p "port:" port
             if [[ -z "${port}" ]]; then
-                port=$((RANDOM % 20001 + 10000))
+                if ! port=$(randomPort 10000 30000); then
+                    read -r -p "port:" port
+                fi
             fi
         else
             echo
@@ -1539,11 +1585,70 @@ customPortFunction() {
     fi
 }
 
+# Check whether the TCP port is occupied
+tcpPortUsed() {
+    local port=$1
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn "sport = :${port}" 2>/dev/null | tail -n +2 | grep -q .
+    else
+        lsof -nP -i "tcp:${port}" 2>/dev/null | grep -q LISTEN
+    fi
+}
+# Check whether the UDP port is occupied
+udpPortUsed() {
+    local port=$1
+    if command -v ss >/dev/null 2>&1; then
+        ss -lun "sport = :${port}" 2>/dev/null | tail -n +2 | grep -q .
+    else
+        lsof -nP -i "udp:${port}" 2>/dev/null | tail -n +2 | grep -q .
+    fi
+}
+# Generate a random number in the requested range
+randomPortNumber() {
+    local min=$1
+    local max=$2
+    local range=$((max - min + 1))
+    if command -v shuf >/dev/null 2>&1; then
+        shuf -i "${min}-${max}" -n 1
+    else
+        echo $((min + (((RANDOM << 15) | RANDOM) % range)))
+    fi
+}
+# Generate a random port with TCP/UDP collision detection (up to 10 tries)
+randomPort() {
+    local min=${1:-10000}
+    local max=${2:-30000}
+    local attempt=0
+    local p=
+    if ! [[ "${min}" =~ ^[0-9]+$ && "${max}" =~ ^[0-9]+$ ]] || (( min > max )); then
+        echoContent red "\n ---> Invalid random port range: ${min}-${max}\n" >&2
+        return 2
+    fi
+    while (( attempt < 10 )); do
+        p=$(randomPortNumber "${min}" "${max}")
+        if ! tcpPortUsed "${p}" && ! udpPortUsed "${p}"; then
+            echo "${p}"
+            return 0
+        fi
+        ((attempt++))
+    done
+    echoContent red "\n ---> Could not find a free port after 10 attempts, please enter it manually\n" >&2
+    return 1
+}
 # Check whether the port is occupied
 checkPort() {
-    if [[ -n "$1" ]] && lsof -i "tcp:$1" | grep -q LISTEN; then
-        echoContent red "\n ---> $1 port is occupied, please close it manually and install\n"
-        lsof -i "tcp:$1" | grep LISTEN
+    local port=$1
+    if [[ -z "${port}" ]]; then
+        return 0
+    fi
+    if tcpPortUsed "${port}"; then
+        echoContent red "\n ---> ${port} port is occupied, please close it manually and install\n"
+        lsof -nP -i "tcp:${port}" 2>/dev/null | grep LISTEN || true
+        exit 0
+    fi
+    if udpPortUsed "${port}"; then
+        echoContent red "\n ---> ${port} port is occupied(TCP/UDP), please close it manually and install\n"
+        lsof -nP -i "udp:${port}" 2>/dev/null | tail -n +2 || true
         exit 0
     fi
 }
@@ -1863,19 +1968,28 @@ installV2Ray() {
     if [[ "${coreInstallType}" != "2" && "${coreInstallType}" != "3" ]]; then
         if [[ "${selectCoreType}" == "2" ]]; then
 
-            version=$(curl -s https://api.github.com/repos/v2fly/v2ray-core/releases?per_page=10 | jq -r '.[]|select (.prerelease==false)|.tag_name' | grep -v 'v5' | head -1)
+            version=$(curl -s --max-time 15 https://api.github.com/repos/v2fly/v2ray-core/releases?per_page=10 | jq -r '.[]|select (.prerelease==false)|.tag_name' | grep -v 'v5' | head -1)
         else
             version=${v2rayCoreVersion}
         fi
 
-        echoContent green " ---> v2ray-core version:${version}"
-        # if wget --help | grep -q show-progress; then
-        wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/v2ray/ "https://github.com/v2fly/v2ray-core/releases/download/${version}/${v2rayCoreCPUVendor}.zip"
-        #else
-        # wget -c -P /etc/v2a/v2ray/ "https://github.com/v2fly/v2ray-core/releases/download/${version}/${v2rayCoreCPUVendor}.zip" >/dev/ null 2>&1
-        # fi
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
+            echoContent red "\n ---> Failed to detect v2ray-core version\n"
+            return 1
+        fi
 
-        unzip -o "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip" -d /etc/v2a/v2ray >/dev/null
+        echoContent green " ---> v2ray-core version:${version}"
+        if ! downloadV2RayCore "${version}"; then
+            rm -f "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip"
+            echoContent red "\n ---> v2ray-core download/verification failed\n"
+            return 1
+        fi
+
+        if ! unzip -o "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip" -d /etc/v2a/v2ray >/dev/null; then
+            echoContent red "\n ---> Failed to unpack v2ray-core archive\n"
+            rm -rf "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip"
+            return 1
+        fi
         rm -rf "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip"
     else
         if [[ "${selectCoreType}" == "3" ]]; then
@@ -1887,9 +2001,17 @@ installV2Ray() {
             echoContent green " ---> v2ray-core version:$(/etc/v2a/v2ray/v2ray --version | awk '{print $2}' | head -1)"
             read -r -p "Update or upgrade? [y/n]:" reInstallV2RayStatus
             if [[ "${reInstallV2RayStatus}" == "y" ]]; then
+                local v2rayBackupFile=
+                v2rayBackupFile="/etc/v2a/v2ray/v2ray.bak.$(date +%s)"
+                cp /etc/v2a/v2ray/v2ray "${v2rayBackupFile}" || return 1
                 rm -f /etc/v2a/v2ray/v2ray
                 rm -f /etc/v2a/v2ray/v2ctl
-                installV2Ray "$1"
+                if ! installV2Ray "$1"; then
+                    echoContent red "\n ---> v2ray-core update failed, restoring previous version\n"
+                    mv "${v2rayBackupFile}" /etc/v2a/v2ray/v2ray
+                    return 1
+                fi
+                return 0
             fi
         fi
     fi
@@ -1949,6 +2071,128 @@ checkWgetShowProgress() {
         wgetShowProgressStatus="--show-progress"
     fi
 }
+
+# Download a file with timeout and retries
+downloadFile() {
+    local outputDir=$1
+    local url=$2
+    if [[ "${release}" == "alpine" ]]; then
+        wget -c -q -T 15 -P "${outputDir}" "${url}"
+    elif [[ -n "${wgetShowProgressStatus}" ]]; then
+        wget -c -q --timeout=15 --tries=3 "${wgetShowProgressStatus}" -P "${outputDir}" "${url}"
+    else
+        wget -c -q --timeout=15 --tries=3 -P "${outputDir}" "${url}"
+    fi
+}
+# Calculate SHA256 of a file
+verifySha256() {
+    local file=$1
+    local expected=$2
+    local actual=
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "${file}" | awk '{print $1}')
+    elif command -v openssl >/dev/null 2>&1; then
+        actual=$(openssl dgst -sha256 "${file}" | awk '{print $NF}')
+    else
+        echoContent red "\n ---> sha256sum/openssl is not installed, cannot verify file integrity\n"
+        return 1
+    fi
+    [[ -n "${expected}" && "${actual}" == "${expected}" ]]
+}
+# Verify a GitHub .dgst file (SHA2-256)
+verifyDgstFile() {
+    local archive=$1
+    local digestFile=$2
+    local expected=
+    expected=$(grep '^SHA2-256=' "${digestFile}" 2>/dev/null | head -1 | awk -F '= ' '{print $2}' | tr -d '\r')
+    if [[ -z "${expected}" ]]; then
+        echoContent red "\n ---> Invalid digest file: ${digestFile}\n"
+        return 1
+    fi
+    if ! verifySha256 "${archive}" "${expected}"; then
+        echoContent red "\n ---> SHA256 verification failed for ${archive}\n"
+        rm -f "${archive}" "${digestFile}"
+        return 1
+    fi
+    rm -f "${digestFile}"
+}
+# Download and verify Xray-core
+downloadXrayCore() {
+    local version=$1
+    local archive="${xrayCoreCPUVendor}.zip"
+    local dir="/etc/v2a/xray"
+    if ! downloadFile "${dir}" "https://github.com/XTLS/Xray-core/releases/download/${version}/${archive}"; then
+        rm -f "${dir}/${archive}"
+        return 1
+    fi
+    if [[ ! -f "${dir}/${archive}" ]]; then
+        return 1
+    fi
+    if ! downloadFile "${dir}" "https://github.com/XTLS/Xray-core/releases/download/${version}/${archive}.dgst"; then
+        echoContent red "\n ---> Failed to download Xray-core digest file\n"
+        rm -f "${dir}/${archive}"
+        return 1
+    fi
+    verifyDgstFile "${dir}/${archive}" "${dir}/${archive}.dgst"
+}
+# Download and verify V2Ray-core
+downloadV2RayCore() {
+    local version=$1
+    local archive="${v2rayCoreCPUVendor}.zip"
+    local dir="/etc/v2a/v2ray"
+    if ! downloadFile "${dir}" "https://github.com/v2fly/v2ray-core/releases/download/${version}/${archive}"; then
+        rm -f "${dir}/${archive}"
+        return 1
+    fi
+    if [[ ! -f "${dir}/${archive}" ]]; then
+        return 1
+    fi
+    if ! downloadFile "${dir}" "https://github.com/v2fly/v2ray-core/releases/download/${version}/${archive}.dgst"; then
+        echoContent red "\n ---> Failed to download V2Ray-core digest file\n"
+        rm -f "${dir}/${archive}"
+        return 1
+    fi
+    verifyDgstFile "${dir}/${archive}" "${dir}/${archive}.dgst"
+}
+# Backup/restore v2ray-core binaries
+backupV2RayCore() {
+    local backupDir=$1
+    mkdir -p "${backupDir}"
+    cp /etc/v2a/v2ray/v2ray "${backupDir}/v2ray" || return 1
+    if [[ -f /etc/v2a/v2ray/v2ctl ]]; then
+        cp /etc/v2a/v2ray/v2ctl "${backupDir}/v2ctl" || return 1
+    fi
+}
+restoreV2RayCore() {
+    local backupDir=$1
+    [[ -f "${backupDir}/v2ray" ]] && mv "${backupDir}/v2ray" /etc/v2a/v2ray/v2ray
+    [[ -f "${backupDir}/v2ctl" ]] && mv "${backupDir}/v2ctl" /etc/v2a/v2ray/v2ctl
+    rm -rf "${backupDir}"
+}
+# Download and verify geo data
+downloadGeoData() {
+    local version=$1
+    local targetDir=$2
+    local geoFile=
+    local expected=
+    for geoFile in geosite.dat geoip.dat; do
+        if ! downloadFile "${targetDir}" "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/${geoFile}"; then
+            echoContent red "\n ---> Failed to download ${geoFile}\n"
+            return 1
+        fi
+        if ! downloadFile "${targetDir}" "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/${geoFile}.sha256sum"; then
+            echoContent red "\n ---> Failed to download ${geoFile}.sha256sum\n"
+            return 1
+        fi
+        expected=$(awk '{print $1}' "${targetDir}/${geoFile}.sha256sum")
+        if ! verifySha256 "${targetDir}/${geoFile}" "${expected}"; then
+            echoContent red "\n ---> SHA256 verification failed for ${geoFile}\n"
+            rm -f "${targetDir}/${geoFile}" "${targetDir}/${geoFile}.sha256sum"
+            return 1
+        fi
+        rm -f "${targetDir}/${geoFile}.sha256sum"
+    done
+}
 # Install xray
 installXray() {
     readInstallType
@@ -1961,34 +2205,60 @@ installXray() {
 
     if [[ "${coreInstallType}" != "1" ]]; then
 
-        version=$(curl -s "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=1" | jq -r ".[].tag_name")
+        version=$(curl -s --max-time 15 "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=1" | jq -r ".[].tag_name")
+
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
+            echoContent red "\n ---> Failed to detect Xray-core version\n"
+            return 1
+        fi
 
         echoContent green " ---> Xray-core version:${version}"
 
-        wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"
-        if [[ ! -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" ]]; then
-            echoContent red " ---> Core download failed, please try installation again"
-            exit 0
+        if ! downloadXrayCore "${version}"; then
+            echoContent red " ---> Core download/verification failed, please try installation again"
+            return 1
         fi
 
-        unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null
+        if ! unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null; then
+            echoContent red "\n ---> Failed to unpack Xray-core archive\n"
+            rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+            return 1
+        fi
         rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
 
-        version=$(curl -s https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
+        if [[ ! -f "/etc/v2a/xray/xray" ]]; then
+            echoContent red "\n ---> Xray executable was not found after unpacking\n"
+            return 1
+        fi
+
+        version=$(curl -s --max-time 15 https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
+            echoContent red "\n ---> Failed to detect geo data version\n"
+            return 1
+        fi
         echoContent skyBlue "------------------------Version-------------------------------"
         echo "version:${version}"
         rm /etc/v2a/xray/geo* >/dev/null 2>&1
 
-        wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geosite.dat"
-        wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geoip.dat"
+        if ! downloadGeoData "${version}" /etc/v2a/xray; then
+            return 1
+        fi
 
         chmod 655 /etc/v2a/xray/xray
     else
         echoContent green " ---> Xray-core version:$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
         read -r -p "Would you like to update or upgrade? [y/n]:" reInstallXrayStatus
         if [[ "${reInstallXrayStatus}" == "y" ]]; then
+            local xrayBackupFile=
+            xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+            cp /etc/v2a/xray/xray "${xrayBackupFile}" || return 1
             rm -f /etc/v2a/xray/xray
-            installXray "$1" "$2"
+            if ! installXray "$1" "$2"; then
+                echoContent red "\n ---> Xray-core update failed, restoring previous version\n"
+                mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                return 1
+            fi
+            return 0
         fi
     fi
 }
@@ -2100,12 +2370,17 @@ xrayVersionManageMenu() {
 updateGeoSite() {
     echoContent yellow "\nSource https://github.com/Loyalsoldier/v2ray-rules-dat"
 
-    version=$(curl -s https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
+    version=$(curl -s --max-time 15 https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases?per_page=1 | jq -r '.[]|.tag_name')
+    if [[ -z "${version}" || "${version}" == "null" ]]; then
+        echoContent red "\n ---> Failed to detect geo data version\n"
+        return 1
+    fi
     echoContent skyBlue "------------------------Version-------------------------------"
     echo "version:${version}"
     rm ${configPath}../geo* >/dev/null
-    wget -c -q "${wgetShowProgressStatus}" -P ${configPath}../ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geosite.dat"
-    wget -c -q "${wgetShowProgressStatus}" -P ${configPath}../ "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/${version}/geoip.dat"
+    if ! downloadGeoData "${version}" "${configPath}../"; then
+        return 1
+    fi
     reloadCore
     echoContent green " ---> Update completed"
 
@@ -2113,76 +2388,133 @@ updateGeoSite() {
 # Update V2Ray
 updateV2Ray() {
     readInstallType
-    if [[ -z "${coreInstallType}" ]]; then
+    local v2rayBackupDir=
+    local currentVersion=
 
+    if [[ -z "${coreInstallType}" || "${coreInstallType}" != "2" ]]; then
         if [[ -n "$1" ]]; then
             version=$1
         else
-            version=$(curl -s https://api.github.com/repos/v2fly/v2ray-core/releases | jq -r '.[]|select (.prerelease==false)|.tag_name' | grep -v 'v5' | head -1)
+            version=$(curl -s --max-time 15 https://api.github.com/repos/v2fly/v2ray-core/releases | jq -r '.[]|select (.prerelease==false)|.tag_name' | grep -v 'v5' | head -1)
         fi
-        # Use locked version
         if [[ -n "${v2rayCoreVersion}" ]]; then
             version=${v2rayCoreVersion}
         fi
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
+            echoContent red "\n ---> Failed to detect v2ray-core version\n"
+            return 1
+        fi
         echoContent green " ---> v2ray-core version:${version}"
-        # if wget --help | grep -q show-progress; then
-        wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/v2ray/ "https://github.com/v2fly/v2ray-core/releases/download/${version}/${v2rayCoreCPUVendor}.zip"
-        #else
-        # wget -c -P "/etc/v2a/v2ray/ https://github.com/v2fly/v2ray-core/releases/download/${version}/${v2rayCoreCPUVendor}.zip" >/dev/ null 2>&1
-        #fi
 
-        unzip -o "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip" -d /etc/v2a/v2ray >/dev/null
+        if ! downloadV2RayCore "${version}"; then
+            echoContent red "\n ---> v2ray-core download/verification failed, update cancelled\n"
+            return 1
+        fi
+
+        if [[ -f /etc/v2a/v2ray/v2ray ]]; then
+            v2rayBackupDir="/etc/v2a/v2ray/backup.$(date +%s)"
+            if ! backupV2RayCore "${v2rayBackupDir}"; then
+                echoContent red "\n ---> Failed to backup v2ray-core, update cancelled\n"
+                rm -rf "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip"
+                return 1
+            fi
+        fi
+
+        if ! unzip -o "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip" -d /etc/v2a/v2ray >/dev/null; then
+            echoContent red "\n ---> Failed to unpack v2ray-core archive\n"
+            rm -rf "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip"
+            if [[ -n "${v2rayBackupDir}" && -d "${v2rayBackupDir}" ]]; then
+                restoreV2RayCore "${v2rayBackupDir}"
+            fi
+            return 1
+        fi
         rm -rf "/etc/v2a/v2ray/${v2rayCoreCPUVendor}.zip"
+        chmod 655 /etc/v2a/v2ray/v2ray
+        [[ -f /etc/v2a/v2ray/v2ctl ]] && chmod 655 /etc/v2a/v2ray/v2ctl
         handleV2Ray stop
         handleV2Ray start
     else
-        echoContent green " ---> Current v2ray-core version: $(/etc/v2a/v2ray/v2ray --version | awk '{print $2}' | head -1)"
+        currentVersion="v$(/etc/v2a/v2ray/v2ray --version | awk '{print $2}' | head -1)"
+        echoContent green " ---> Current v2ray-core version:${currentVersion}"
 
         if [[ -n "$1" ]]; then
             version=$1
         else
-            version=$(curl -s https://api.github.com/repos/v2fly/v2ray-core/releases | jq -r '.[]|select (.prerelease==false)|.tag_name' | grep -v 'v5' | head -1)
+            version=$(curl -s --max-time 15 https://api.github.com/repos/v2fly/v2ray-core/releases | jq -r '.[]|select (.prerelease==false)|.tag_name' | grep -v 'v5' | head -1)
+            if [[ -z "${version}" || "${version}" == "null" ]]; then
+                echoContent red "\n ---> Failed to detect v2ray-core version\n"
+                return 1
+            fi
+            echoContent green " ---> Latest version:${version}"
         fi
-
         if [[ -n "${v2rayCoreVersion}" ]]; then
             version=${v2rayCoreVersion}
         fi
+
         if [[ -n "$1" ]]; then
             read -r -p "The rollback version is ${version}, do you want to continue? [y/n]:" rollbackV2RayStatus
             if [[ "${rollbackV2RayStatus}" == "y" ]]; then
-                if [[ "${coreInstallType}" == "2" ]]; then
-                    echoContent green " ---> Current v2ray-core version: $(/etc/v2a/v2ray/v2ray --version | awk '{print $2}' | head -1)"
-                elif [[ "${coreInstallType}" == "1" ]]; then
-                    echoContent green " ---> Current Xray-core version: $(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
-                fi
-
+                echoContent green " ---> Current v2ray-core version:${currentVersion}"
                 handleV2Ray stop
-                rm -f /etc/v2a/v2ray/v2ray
-                rm -f /etc/v2a/v2ray/v2ctl
-                updateV2Ray "${version}"
+                v2rayBackupDir="/etc/v2a/v2ray/backup.$(date +%s)"
+                if ! backupV2RayCore "${v2rayBackupDir}"; then
+                    echoContent red "\n ---> Failed to backup v2ray-core\n"
+                    handleV2Ray start
+                    return 1
+                fi
+                rm -f /etc/v2a/v2ray/v2ray /etc/v2a/v2ray/v2ctl
+                if ! updateV2Ray "${version}"; then
+                    echoContent red "\n ---> v2ray-core rollback failed, restoring previous version\n"
+                    restoreV2RayCore "${v2rayBackupDir}"
+                    handleV2Ray start
+                    return 1
+                fi
+                rm -rf "${v2rayBackupDir}"
             else
                 echoContent green " ---> Abandon the rollback version"
             fi
-        elif [[ "${version}" == "v$(/etc/v2a/v2ray/v2ray --version | awk '{print $2}' | head -1)" ]]; then
+        elif [[ "${version}" == "${currentVersion}" ]]; then
             read -r -p "The current version is the same as the latest version. Do you want to reinstall? [y/n]:" reInstallV2RayStatus
             if [[ "${reInstallV2RayStatus}" == "y" ]]; then
                 handleV2Ray stop
-                rm -f /etc/v2a/v2ray/v2ray
-                rm -f /etc/v2a/v2ray/v2ctl
-                updateV2Ray
+                v2rayBackupDir="/etc/v2a/v2ray/backup.$(date +%s)"
+                if ! backupV2RayCore "${v2rayBackupDir}"; then
+                    echoContent red "\n ---> Failed to backup v2ray-core\n"
+                    handleV2Ray start
+                    return 1
+                fi
+                rm -f /etc/v2a/v2ray/v2ray /etc/v2a/v2ray/v2ctl
+                if ! updateV2Ray; then
+                    echoContent red "\n ---> v2ray-core reinstall failed, restoring previous version\n"
+                    restoreV2RayCore "${v2rayBackupDir}"
+                    handleV2Ray start
+                    return 1
+                fi
+                rm -rf "${v2rayBackupDir}"
             else
                 echoContent green " ---> Give up and reinstall"
             fi
         else
             read -r -p "The latest version is: ${version}, do you want to update? [y/n]:" installV2RayStatus
             if [[ "${installV2RayStatus}" == "y" ]]; then
-                rm -f /etc/v2a/v2ray/v2ray
-                rm -f /etc/v2a/v2ray/v2ctl
-                updateV2Ray
+                handleV2Ray stop
+                v2rayBackupDir="/etc/v2a/v2ray/backup.$(date +%s)"
+                if ! backupV2RayCore "${v2rayBackupDir}"; then
+                    echoContent red "\n ---> Failed to backup v2ray-core\n"
+                    handleV2Ray start
+                    return 1
+                fi
+                rm -f /etc/v2a/v2ray/v2ray /etc/v2a/v2ray/v2ctl
+                if ! updateV2Ray; then
+                    echoContent red "\n ---> v2ray-core update failed, restoring previous version\n"
+                    restoreV2RayCore "${v2rayBackupDir}"
+                    handleV2Ray start
+                    return 1
+                fi
+                rm -rf "${v2rayBackupDir}"
             else
                 echoContent green " ---> Abort update"
             fi
-
         fi
     fi
 }
@@ -2190,61 +2522,140 @@ updateV2Ray() {
 # Update Xray
 updateXray() {
     readInstallType
-    if [[ -z "${coreInstallType}" ]]; then
+    local xrayBackupFile=
+    local currentVersion=
+
+    if [[ -z "${coreInstallType}" || "${coreInstallType}" != "1" ]]; then
         if [[ -n "$1" ]]; then
             version=$1
+        elif [[ "${prereleaseStatus}" == "true" ]]; then
+            version=$(curl -s --max-time 15 "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
         else
-            version=$(curl -s "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=1" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name")
+            version=$(curl -s --max-time 15 https://api.github.com/repos/XTLS/Xray-core/releases/latest | jq -r .tag_name)
+        fi
+
+        if [[ -z "${version}" || "${version}" == "null" ]]; then
+            echoContent red "\n ---> Failed to detect Xray-core version\n"
+            return 1
         fi
 
         echoContent green " ---> Xray-core version:${version}"
 
-        wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"
+        if ! downloadXrayCore "${version}"; then
+            echoContent red "\n ---> Xray-core download/verification failed, update cancelled\n"
+            return 1
+        fi
 
-        unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null
+        if [[ -f /etc/v2a/xray/xray ]]; then
+            xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+            if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                echoContent red "\n ---> Failed to backup Xray-core\n"
+                return 1
+            fi
+        fi
+
+        if ! unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null; then
+            echoContent red "\n ---> Failed to unpack Xray-core archive\n"
+            rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+            if [[ -n "${xrayBackupFile}" && -f "${xrayBackupFile}" ]]; then
+                mv "${xrayBackupFile}" /etc/v2a/xray/xray
+            fi
+            return 1
+        fi
         rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+
+        if [[ ! -f /etc/v2a/xray/xray ]]; then
+            echoContent red "\n ---> Xray executable was not found after unpacking\n"
+            if [[ -n "${xrayBackupFile}" && -f "${xrayBackupFile}" ]]; then
+                mv "${xrayBackupFile}" /etc/v2a/xray/xray
+            fi
+            return 1
+        fi
+
         chmod 655 /etc/v2a/xray/xray
         handleXray stop
         handleXray start
     else
-        echoContent green " ---> Current Xray-core version: $(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+        currentVersion="v$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+        echoContent green " ---> Current Xray-core version:${currentVersion}"
 
         if [[ -n "$1" ]]; then
             version=$1
         else
-            version=$(curl -s "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=1" | jq -r ".[].tag_name")
+            if [[ "${prereleaseStatus}" == "true" ]]; then
+                remoteVersion=$(curl -s --max-time 15 "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
+            else
+                remoteVersion=$(curl -s --max-time 15 https://api.github.com/repos/XTLS/Xray-core/releases/latest | jq -r .tag_name)
+            fi
+            if [[ -z "${remoteVersion}" || "${remoteVersion}" == "null" ]]; then
+                echoContent red "\n ---> Failed to detect Xray-core version\n"
+                return 1
+            fi
+            echoContent green " ---> Latest version:${remoteVersion}"
+            version=${remoteVersion}
         fi
 
         if [[ -n "$1" ]]; then
             read -r -p "The rollback version is ${version}, do you want to continue? [y/n]:" rollbackXrayStatus
             if [[ "${rollbackXrayStatus}" == "y" ]]; then
-                echoContent green " ---> Current Xray-core version: $(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
-
+                echoContent green " ---> Current Xray-core version:${currentVersion}"
                 handleXray stop
+                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                    echoContent red "\n ---> Failed to backup Xray-core\n"
+                    handleXray start
+                    return 1
+                fi
                 rm -f /etc/v2a/xray/xray
-                updateXray "${version}"
+                if ! updateXray "${version}"; then
+                    echoContent red "\n ---> Xray-core rollback failed, restoring previous version\n"
+                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    handleXray start
+                    return 1
+                fi
             else
                 echoContent green " ---> Abandon the rollback version"
             fi
-        elif [[ "${version}" == "v$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)" ]]; then
+        elif [[ "${version}" == "${currentVersion}" ]]; then
             read -r -p "The current version is the same as the latest version. Do you want to reinstall? [y/n]:" reInstallXrayStatus
             if [[ "${reInstallXrayStatus}" == "y" ]]; then
                 handleXray stop
+                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                    echoContent red "\n ---> Failed to backup Xray-core\n"
+                    handleXray start
+                    return 1
+                fi
                 rm -f /etc/v2a/xray/xray
-                rm -f /etc/v2a/xray/xray
-                updateXray
+                if ! updateXray; then
+                    echoContent red "\n ---> Xray-core reinstall failed, restoring previous version\n"
+                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    handleXray start
+                    return 1
+                fi
             else
                 echoContent green " ---> Give up and reinstall"
             fi
         else
             read -r -p "The latest version is: ${version}, is it updated? [y/n]:" installXrayStatus
             if [[ "${installXrayStatus}" == "y" ]]; then
+                handleXray stop
+                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                    echoContent red "\n ---> Failed to backup Xray-core\n"
+                    handleXray start
+                    return 1
+                fi
                 rm -f /etc/v2a/xray/xray
-                updateXray
+                if ! updateXray; then
+                    echoContent red "\n ---> Xray-core update failed, restoring previous version\n"
+                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    handleXray start
+                    return 1
+                fi
             else
                 echoContent green " ---> Abort update"
             fi
-
         fi
     fi
 }
@@ -2647,7 +3058,9 @@ initHysteriaPort() {
         echoContent yellow "Please enter the Hysteria port [enter random 10000-30000], cannot be repeated with other services"
         read -r -p "Port:" hysteriaPort
         if [[ -z "${hysteriaPort}" ]]; then
-            hysteriaPort=$((RANDOM % 20001 + 10000))
+            if ! hysteriaPort=$(randomPort 10000 30000); then
+                read -r -p "Port:" hysteriaPort
+            fi
         fi
     fi
     if [[ -z ${hysteriaPort} ]]; then
@@ -2905,7 +3318,9 @@ initTuicPort() {
         echoContent yellow "Please enter the Tuic port [enter random 10000-30000], cannot be repeated with other services"
         read -r -p "Port:" tuicPort
         if [[ -z "${tuicPort}" ]]; then
-            tuicPort=$((RANDOM % 20001 + 10000))
+            if ! tuicPort=$(randomPort 10000 30000); then
+                read -r -p "Port:" tuicPort
+            fi
         fi
     fi
     if [[ -z ${tuicPort} ]]; then
@@ -3891,7 +4306,7 @@ EOF
     client-fingerprint: chrome
 EOF
             echoContent yellow " ---> QR code VLESS(VLESS+TCP+TLS_Vision)"
-            echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}\n"
+            showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}"
         elif [[ "${coreInstallType}" == 2 ]]; then
             echoContent yellow " ---> Universal format (VLESS+TCP+TLS)"
             echoContent green "    vless://${id}@${currentHost}:${currentDefaultPort}?security=tls&encryption=none&host=${currentHost}&fp=chrome&headerType=none&type=tcp#${email}\n"
@@ -3903,7 +4318,7 @@ EOF
 vless://${id}@${currentHost}:${currentDefaultPort}?security=tls&encryption=none&host=${currentHost}&fp=chrome&headerType=none&type=tcp#${email}
 EOF
             echoContent yellow " ---> QR code VLESS(VLESS+TCP+TLS)"
-            echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3a%2f%2f${id}%40${currentHost}%3a${currentDefaultPort}%3fsecurity%3dtls%26encryption%3dnone%26fp%3Dchrome%26host%3d${currentHost}%26headerType%3dnone%26type%3dtcp%23${email}\n"
+            showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3a%2f%2f${id}%40${currentHost}%3a${currentDefaultPort}%3fsecurity%3dtls%26encryption%3dnone%26fp%3Dchrome%26host%3d${currentHost}%26headerType%3dnone%26type%3dtcp%23${email}"
         fi
 
     elif [[ "${type}" == "trojanTCPXTLS" ]]; then
@@ -3916,7 +4331,7 @@ EOF
 trojan://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=xtls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}
 EOF
         echoContent yellow " ---> QR code Trojan(Trojan+TCP+TLS_Vision)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dxtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3A%2F%2F${id}%40${currentHost}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dxtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}"
 
     elif [[ "${type}" == "vmessws" ]]; then
         qrCodeBase64Default=$(echo -n "{\"port\":${currentDefaultPort},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"/${currentPath}vws\",\"net\":\"ws\",\"add\":\"${add}\",\"allowInsecure\":0,\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}" | base64 -w 0)
@@ -3949,7 +4364,7 @@ EOF
       headers:
         Host: ${currentHost}
 EOF
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}"
 
     elif [[ "${type}" == "vlessws" ]]; then
 
@@ -3980,7 +4395,7 @@ EOF
 EOF
 
         echoContent yellow " ---> QR code VLESS(VLESS+WS+TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dws%26host%3D${currentHost}%26fp%3Dchrome%26sni%3D${currentHost}%26path%3D%252f${currentPath}ws%23${email}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dws%26host%3D${currentHost}%26fp%3Dchrome%26sni%3D${currentHost}%26path%3D%252f${currentPath}ws%23${email}"
 
     elif [[ "${type}" == "vlessgrpc" ]]; then
 
@@ -4008,7 +4423,7 @@ EOF
       grpc-service-name: ${currentPath}grpc
 EOF
         echoContent yellow " ---> QR code VLESS(VLESS+gRPC+TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dgrpc%26host%3D${currentHost}%26serviceName%3D${currentPath}grpc%26fp%3Dchrome%26path%3D${currentPath}grpc%26sni%3D${currentHost}%26alpn%3Dh2%23${email}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${currentDefaultPort}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dgrpc%26host%3D${currentHost}%26serviceName%3D${currentPath}grpc%26fp%3Dchrome%26path%3D${currentPath}grpc%26sni%3D${currentHost}%26alpn%3Dh2%23${email}"
 
     elif [[ "${type}" == "trojan" ]]; then
         # URLEncode
@@ -4030,7 +4445,7 @@ EOF
     sni: ${currentHost}
 EOF
         echoContent yellow " ---> QR code Trojan(TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${currentHost}%3a${port}%3fpeer%3d${currentHost}%26fp%3Dchrome%26sni%3d${currentHost}%26alpn%3Dhttp/1.1%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${currentHost}%3a${port}%3fpeer%3d${currentHost}%26fp%3Dchrome%26sni%3d${currentHost}%26alpn%3Dhttp/1.1%23${email}"
 
     elif [[ "${type}" == "trojangrpc" ]]; then
         # URLEncode
@@ -4053,7 +4468,7 @@ EOF
       grpc-service-name: ${currentPath}trojangrpc
 EOF
         echoContent yellow " ---> QR code Trojan gRPC(TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${add}%3a${currentDefaultPort}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26peer%3d${currentHost}%26type%3Dgrpc%26sni%3d${currentHost}%26path%3D${currentPath}trojangrpc%26alpn%3Dh2%26serviceName%3D${currentPath}trojangrpc%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${add}%3a${currentDefaultPort}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26peer%3d${currentHost}%26type%3Dgrpc%26sni%3d${currentHost}%26path%3D${currentPath}trojangrpc%26alpn%3Dh2%26serviceName%3D${currentPath}trojangrpc%23${email}"
 
     elif [[ "${type}" == "hysteria" ]]; then
         local hysteriaEmail=
@@ -4121,7 +4536,7 @@ EOF
         if [[ -n "${mport}" ]]; then
             mport="mport%3D${portHoppingStart}-${portHoppingEnd}%26"
         fi
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=hysteria%3A%2F%2F${currentHost}%3A${hysteriaPort}%3F${mport}protocol%3D${hysteriaProtocol}%26auth%3D${id}%26peer%3D${currentHost}%26insecure%3D0%26alpn%3Dh3%26upmbps%3D${hysteriaClientUploadSpeed}%26downmbps%3D${hysteriaClientDownloadSpeed}%23${hysteriaEmail}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=hysteria%3A%2F%2F${currentHost}%3A${hysteriaPort}%3F${mport}protocol%3D${hysteriaProtocol}%26auth%3D${id}%26peer%3D${currentHost}%26insecure%3D0%26alpn%3Dh3%26upmbps%3D${hysteriaClientUploadSpeed}%26downmbps%3D${hysteriaClientDownloadSpeed}%23${hysteriaEmail}"
     elif [[ "${type}" == "vlessReality" ]]; then
         echoContent yellow " ---> Universal format (VLESS+reality+uTLS+Vision)"
         echoContent green "    vless://${id}@$(getPublicIP):${currentRealityPort}?encryption=none&security=reality&type=tcp&sni=${currentRealityServerNames}&fp=chrome&pbk=${currentRealityPublicKey}&sid=6ba85179e30d4fc2&flow=xtls-rprx-vision#${email}\n"
@@ -4148,7 +4563,7 @@ EOF
     client-fingerprint: chrome
 EOF
         echoContent yellow " ---> QR code VLESS(VLESS+reality+uTLS+Vision)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${currentRealityPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26sni%3D${currentRealityServerNames}%26fp%3Dchrome%26pbk%3D${currentRealityPublicKey}%26pbk%3D6ba85179e30d4fc2%26flow%3Dxtls-rprx-vision%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${currentRealityPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26sni%3D${currentRealityServerNames}%26fp%3Dchrome%26pbk%3D${currentRealityPublicKey}%26pbk%3D6ba85179e30d4fc2%26flow%3Dxtls-rprx-vision%23${email}"
 
     elif [[ "${type}" == "vlessRealityGRPC" ]]; then
         echoContent yellow " ---> Universal format (VLESS+reality+uTLS+gRPC)"
@@ -4177,7 +4592,7 @@ EOF
     client-fingerprint: chrome
 EOF
         echoContent yellow " ---> QR code VLESS(VLESS+reality+uTLS+gRPC)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${currentRealityPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dgrpc%26sni%3D${currentRealityServerNames}%26fp%3Dchrome%26pbk%3D${currentRealityPublicKey}%26pbk%3D6ba85179e30d4fc2%26path%3Dgrpc%26serviceName%3Dgrpc%23${email}\n"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${currentRealityPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dgrpc%26sni%3D${currentRealityServerNames}%26fp%3Dchrome%26pbk%3D${currentRealityPublicKey}%26pbk%3D6ba85179e30d4fc2%26path%3Dgrpc%26serviceName%3Dgrpc%23${email}"
     elif [[ "${type}" == "tuic" ]]; then
 
         if [[ -z "${email}" ]]; then
@@ -5197,21 +5612,20 @@ removeUser() {
 updateV2RayAgent() {
     echoContent skyBlue "\nProgress$1/${totalProgress}: Update v2a script"
     rm -rf /etc/v2a/install.sh
-    # if wget --help | grep -q show-progress; then
-    wget -c -q "${wgetShowProgressStatus}" -P /etc/v2a/ -N --no-check-certificate "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"
-    #else
-    # wget -c -q -P /etc/v2a/ -N --no-check-certificate "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"
-    #fi
+    if ! downloadFile /etc/v2a/ "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"; then
+        echoContent red "\n ---> Failed to download the latest script\n"
+        return 1
+    fi
 
     sudo chmod 700 /etc/v2a/install.sh
     local version
-    version=$(grep 'Current version: v' "/etc/v2a/install.sh" | awk -F "[v]" '{print $2}' | tail -n +2 | head -n 1 | awk -F "[\"]" '{print $1}')
+    version=$(grep '当前版本：v' "/etc/v2a/install.sh" | awk -F "[v]" '{print $2}' | tail -n +2 | head -n 1 | awk -F "[\"]" '{print $1}')
 
     echoContent green "\n ---> Update completed"
     echoContent yellow " ---> Please manually execute [vasma] to open the script"
     echoContent green " ---> Current version: ${version}\n"
     echoContent yellow "If the update fails, please manually execute the following command\n"
-    echoContent skyBlue "wget -P /root -N --no-check-certificate https://raw.githubusercontent.com/mcogh/v2a/master/install.sh && chmod 700 /root/install.sh && /root/install.sh"
+    echoContent skyBlue "wget -P /root -N https://raw.githubusercontent.com/mcogh/v2a/master/install.sh && chmod 700 /root/install.sh && /root/install.sh"
     echo
     exit 0
 }
@@ -5241,7 +5655,24 @@ bbrInstall() {
     echoContent red "================================================== ==============="
     read -r -p "Please select:" installBBRStatus
     if [[ "${installBBRStatus}" == "1" ]]; then
-        wget -N --no-check-certificate "https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcp.sh" && chmod +x tcp.sh && ./tcp.sh
+        read -r -p "This will download and execute tcp.sh from ylx2016/Linux-NetSpeed. Continue? [y/n]:" installBBRScriptStatus
+        if [[ "${installBBRScriptStatus}" != "y" ]]; then
+            menu
+            return
+        fi
+        rm -f /tmp/tcp.sh
+        if ! wget -q --timeout=15 --tries=3 -O /tmp/tcp.sh "https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcp.sh"; then
+            echoContent red "\n ---> Failed to download tcp.sh\n"
+            return 1
+        fi
+        if [[ ! -s /tmp/tcp.sh ]]; then
+            echoContent red "\n ---> tcp.sh is empty\n"
+            rm -f /tmp/tcp.sh
+            return 1
+        fi
+        chmod 700 /tmp/tcp.sh
+        /tmp/tcp.sh
+        rm -f /tmp/tcp.sh
     else
         menu
     fi
@@ -7668,8 +8099,7 @@ subscribe() {
                 echoContent skyBlue "\n----------Default subscription----------\n"
                 echoContent green "email:${email}\n"
                 echoContent yellow "url:https://${currentDomain}/s/default/${emailMd5}\n"
-                echoContent yellow "Online QR code: https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://${currentDomain}/s/default/${emailMd5}\n "
-                echo "https://${currentDomain}/s/default/${emailMd5}" | qrencode -s 10 -m 1 -t UTF8
+                showQRCode "https://${currentDomain}/s/default/${emailMd5}"
 
                 #clashMeta
                 if [[ -f "/etc/v2a/subscribe_local/clashMeta/${email}" ]]; then
@@ -7692,8 +8122,7 @@ subscribe() {
                     clashMetaConfig "${clashProxyUrl}" "${emailMd5}"
                     echoContent skyBlue "\n----------clashMeta subscription----------\n"
                     echoContent yellow "url:https://${currentDomain}/s/clashMetaProfiles/${emailMd5}\n"
-                    echoContent yellow "Online QR code: https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://${currentDomain}/s/clashMetaProfiles/${emailMd5}\n "
-                    echo "https://${currentDomain}/s/clashMetaProfiles/${emailMd5}" | qrencode -s 10 -m 1 -t UTF8
+                    showQRCode "https://${currentDomain}/s/clashMetaProfiles/${emailMd5}"
                 fi
 
                 echoContent skyBlue "------------------------------------------------- ---------------"
@@ -7882,7 +8311,9 @@ initRealityPort() {
             echoContent yellow "Please enter the port [Enter random 10000-30000]"
             read -r -p "port:" realityPort
             if [[ -z "${realityPort}" ]]; then
-                realityPort=$((RANDOM % 20001 + 10000))
+                if ! realityPort=$(randomPort 10000 30000); then
+                    read -r -p "port:" realityPort
+                fi
             fi
         fi
         if [[ -n "${realityPort}" && "${currentRealityPort}" == "${realityPort}" ]]; then
@@ -8092,8 +8523,8 @@ tuicVersionManageMenu() {
 menu() {
     cd "$HOME" || exit
     echoContent red "\n================================================ ================="
-    echoContent green "Author: upstream"
-    echoContent green "Current version: v3.5.13"
+    echoContent green "Author: upstream / fork: mcogh"
+    echoContent green "Current version: v3.5.21"
     echoContent green "Github: https://github.com/mcogh/v2a"
     echoContent green "Description: 8-in-1 coexistence script\c"
     showInstallStatus

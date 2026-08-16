@@ -28,6 +28,15 @@ echoContent() {
         ;;
     esac
 }
+# 本地生成二维码，不依赖第三方在线二维码服务
+showQRCode() {
+    local qrData=$1
+    if command -v qrencode >/dev/null 2>&1; then
+        echo "${qrData}" | qrencode -s 6 -m 1 -t UTF8
+    else
+        echoContent "yellow" " ---> qrencode未安装，无法本地生成二维码，请复制链接手动生成"
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # 默认值
@@ -1627,7 +1636,7 @@ promptExistingInstallAction() {
     fi
 
     echoContent "skyBlue" ""
-    echoContent green "作者：upstream"
+    echoContent green "作者：upstream / fork: mcogh"
     echoContent green "当前版本：v0.0.1"
     echoContent green "Github：https://github.com/mcogh/v2a"
     echoContent green "描述：八合一docker版"
@@ -1722,7 +1731,7 @@ showVisionAccount() {
     local displayUUID="$5"
     local displayEmail="$6"
     local displayShortId="$7"
-    local vlessLink qrData qrLink
+    local vlessLink
 
     if [[ -z "${displayAddress}" ]]; then
         displayAddress="YOUR_SERVER_IP"
@@ -1733,14 +1742,6 @@ showVisionAccount() {
         echoContent "yellow" " ---> Vision 账号信息不完整，已跳过订阅链接输出"
         return 0
     fi
-    qrData="${vlessLink//:/%3A}"
-    qrData="${qrData//\//%2F}"
-    qrData="${qrData//@/%40}"
-    qrData="${qrData//\?/%3F}"
-    qrData="${qrData//&/%26}"
-    qrData="${qrData//#/%23}"
-    qrData="${qrData//=/%3D}"
-    qrLink="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${qrData}"
 
     echoContent "skyBlue" "============================= VLESS reality_vision [推荐]  =============================="
     echoContent "skyBlue" ""
@@ -1753,7 +1754,7 @@ showVisionAccount() {
     echoContent "green" "协议类型:VLESS reality，地址:${displayAddress}，publicKey:${displayPublicKey}，shortId: ${displayShortId}，serverNames：${displayServerName}，端口:${displayPort}，用户ID:${displayUUID}，传输方式:tcp，账户名:${displayEmail}"
     echoContent "white" ""
     echoContent "yellow" " ---> 二维码 VLESS(VLESS+reality+uTLS+Vision)"
-    echoContent "green" "    ${qrLink}"
+    showQRCode "${vlessLink}"
 }
 
 # showXHTTPAccount — 以 install.sh showAccounts 风格展示 XHTTP 账号。
@@ -1767,7 +1768,7 @@ showXHTTPAccount() {
     local displayEmail="$6"
     local displayShortId="$7"
     local displayPath="$8"
-    local vlessLink qrLink
+    local vlessLink
 
     if [[ -z "${displayAddress}" ]]; then
         displayAddress="YOUR_SERVER_IP"
@@ -1778,7 +1779,6 @@ showXHTTPAccount() {
         echoContent "yellow" " ---> XHTTP 账号信息不完整，已跳过订阅链接输出"
         return 0
     fi
-    qrLink="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${displayUUID}%40${displayAddress}%3A${displayPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dxhttp%26sni%3D${displayServerName}%26fp%3Dchrome%26path%3D${displayPath}%26host%3D${displayServerName}%26pbk%3D${displayPublicKey}%26sid%3D${displayShortId}%23${displayEmail}"
 
     echoContent "skyBlue" "============================= VLESS reality_xhttp  =============================="
     echoContent "skyBlue" ""
@@ -1791,7 +1791,7 @@ showXHTTPAccount() {
     echoContent "green" "协议类型:VLESS reality，地址:${displayAddress}，publicKey:${displayPublicKey}，shortId: ${displayShortId}，serverNames：${displayServerName}，端口:${displayPort}，路径：${displayPath}，SNI:${displayServerName}，伪装域名:${displayServerName}，用户ID:${displayUUID}，传输方式:xhttp，账户名:${displayEmail}"
     echoContent "white" ""
     echoContent "yellow" " ---> 二维码 VLESS(VLESS+reality+xhttp)"
-    echoContent "green" "    ${qrLink}"
+    showQRCode "${vlessLink}"
 }
 
 # showChineseSubscriptionSection — 输出本地中文订阅内容与风险提示。
@@ -1886,13 +1886,13 @@ showChineseSubscriptionSection() {
     echoContent "white" ""
     echoContent "green" "email: ${subscribeName}"
     echoContent "yellow" "url: ${subscribeURL}"
-    echoContent "yellow" "在线二维码: https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=$(urlEncode "${subscribeURL}")"
+    showQRCode "${subscribeURL}"
     if [[ -n "${clashProfileURL}" ]]; then
         echo
         echoContent "skyBlue" "--------------Clash Verge(mihomo)订阅--------------"
         echo
         echoContent "yellow" "url: ${clashProfileURL}"
-        echoContent "yellow" "在线二维码: https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=$(urlEncode "${clashProfileURL}")"
+        showQRCode "${clashProfileURL}"
     fi
 }
 

@@ -28,6 +28,15 @@ echoContent() {
         ;;
     esac
 }
+# Generate QR codes locally without third-party online services
+showQRCode() {
+    local qrData=$1
+    if command -v qrencode >/dev/null 2>&1; then
+        echo "${qrData}" | qrencode -s 6 -m 1 -t UTF8
+    else
+        echoContent "yellow" " ---> qrencode is not installed; copy the link and generate a QR code manually"
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -1708,7 +1717,7 @@ showVisionAccount() {
     local displayUUID="$5"
     local displayEmail="$6"
     local displayShortId="$7"
-    local vlessLink qrData qrLink
+    local vlessLink
 
     if [[ -z "${displayAddress}" ]]; then
         displayAddress="YOUR_SERVER_IP"
@@ -1719,14 +1728,6 @@ showVisionAccount() {
         echoContent "yellow" " ---> Vision account data is incomplete; skipping subscription link output"
         return 0
     fi
-    qrData="${vlessLink//:/%3A}"
-    qrData="${qrData//\//%2F}"
-    qrData="${qrData//@/%40}"
-    qrData="${qrData//\?/%3F}"
-    qrData="${qrData//&/%26}"
-    qrData="${qrData//#/%23}"
-    qrData="${qrData//=/%3D}"
-    qrLink="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${qrData}"
 
     echoContent "skyBlue" "============================= VLESS Reality Vision [Recommended] =============================="
     echoContent "skyBlue" ""
@@ -1739,7 +1740,7 @@ showVisionAccount() {
     echoContent "green" "Protocol: VLESS reality, Address: ${displayAddress}, publicKey: ${displayPublicKey}, shortId: ${displayShortId}, serverNames: ${displayServerName}, Port: ${displayPort}, UserID: ${displayUUID}, Transport: tcp, Account: ${displayEmail}"
     echoContent "white" ""
     echoContent "yellow" " ---> QR Code VLESS (VLESS+reality+uTLS+Vision)"
-    echoContent "green" "    ${qrLink}"
+    showQRCode "${vlessLink}"
 }
 
 # showXHTTPAccount — display the XHTTP account in a showAccounts-style layout.
@@ -1753,7 +1754,7 @@ showXHTTPAccount() {
     local displayEmail="$6"
     local displayShortId="$7"
     local displayPath="$8"
-    local vlessLink qrLink
+    local vlessLink
 
     if [[ -z "${displayAddress}" ]]; then
         displayAddress="YOUR_SERVER_IP"
@@ -1764,7 +1765,6 @@ showXHTTPAccount() {
         echoContent "yellow" " ---> XHTTP account data is incomplete; skipping subscription link output"
         return 0
     fi
-    qrLink="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${displayUUID}%40${displayAddress}%3A${displayPort}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dxhttp%26sni%3D${displayServerName}%26fp%3Dchrome%26path%3D${displayPath}%26host%3D${displayServerName}%26pbk%3D${displayPublicKey}%26sid%3D${displayShortId}%23${displayEmail}"
 
     echoContent "skyBlue" "============================= VLESS Reality XHTTP =============================="
     echoContent "skyBlue" ""
@@ -1777,7 +1777,7 @@ showXHTTPAccount() {
     echoContent "green" "Protocol: VLESS reality, Address: ${displayAddress}, publicKey: ${displayPublicKey}, shortId: ${displayShortId}, serverNames: ${displayServerName}, Port: ${displayPort}, Path: ${displayPath}, SNI: ${displayServerName}, Host: ${displayServerName}, UserID: ${displayUUID}, Transport: xhttp, Account: ${displayEmail}"
     echoContent "white" ""
     echoContent "yellow" " ---> QR Code VLESS (VLESS+reality+xhttp)"
-    echoContent "green" "    ${qrLink}"
+    showQRCode "${vlessLink}"
 }
 
 # showEnglishSubscriptionSection — print the local subscription content and security note.
@@ -1872,11 +1872,11 @@ showEnglishSubscriptionSection() {
     echoContent "white" ""
     echoContent "green" "email:${subscribeName}"
     echoContent "yellow" "url:${subscribeURL}"
-    echoContent "yellow" "Online QR code:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=$(urlEncode "${subscribeURL}")"
+    showQRCode "${subscribeURL}"
     if [[ -n "${clashProfileURL}" ]]; then
         echoContent "skyBlue" "\n----------clashMeta/Clash Verge subscription----------\n"
         echoContent "yellow" "url:${clashProfileURL}"
-        echoContent "yellow" "Online QR code:https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=$(urlEncode "${clashProfileURL}")"
+        showQRCode "${clashProfileURL}"
     fi
 }
 
