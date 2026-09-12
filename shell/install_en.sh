@@ -7182,7 +7182,7 @@ EOF
 # Script shortcut
 aliasInstall() {
 
-    if [[ -f "$HOME/install.sh" ]] && [[ -d "/etc/v2a" ]] && grep <"$HOME/install.sh" -q "作者:upstream"; then
+    if [[ -f "$HOME/install.sh" ]] && [[ -d "/etc/v2a" ]] && grep <"$HOME/install.sh" -q "作者：mcogh"; then
         mv "$HOME/install.sh" /etc/v2a/install.sh
         local vasmaType=
         if [[ -d "/usr/bin/" ]]; then
@@ -10728,7 +10728,7 @@ singBoxVersionManageMenu() {
 menu() {
     cd "$HOME" || exit
     echoContent red "\n=============================================================="
-    echoContent green "Author: upstream / fork: mcogh"
+    echoContent green "Author: mcogh"
     echoContent green "Current version: v3.5.24"
     echoContent green "Github: https://github.com/mcogh/v2a"
     echoContent green "Description: 8-in-1 coexistence script\c"
