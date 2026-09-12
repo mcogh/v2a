@@ -1627,6 +1627,7 @@ promptExistingInstallAction() {
     fi
 
     echoContent "skyBlue" ""
+    echoContent green "Author: mcogh"
     if [[ ${hasConfig} -ne 0 && ${hasContainer} -ne 0 ]]; then
         echoContent "skyBlue" "─── No Existing Docker Reality Installation Detected ───────────────"
         echoContent "white" "No config file or container was detected. Choose the next action:"

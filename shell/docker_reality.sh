@@ -1636,7 +1636,7 @@ promptExistingInstallAction() {
     fi
 
     echoContent "skyBlue" ""
-    echoContent green "作者：upstream / fork: mcogh"
+    echoContent green "作者：mcogh"
     echoContent green "当前版本：v0.0.1"
     echoContent green "Github：https://github.com/mcogh/v2a"
     echoContent green "描述：八合一docker版"

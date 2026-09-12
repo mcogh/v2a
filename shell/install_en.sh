@@ -7182,7 +7182,7 @@ EOF
 # Script shortcut
 aliasInstall() {
 
-    if [[ -f "$HOME/install.sh" ]] && [[ -d "/etc/v2a" ]] && grep <"$HOME/install.sh" -q "作者：mcogh"; then
+    if [[ -f "$HOME/install.sh" ]] && [[ -d "/etc/v2a" ]] && grep <"$HOME/install.sh" -qE "作者：mcogh|Author: mcogh"; then
         mv "$HOME/install.sh" /etc/v2a/install.sh
         local vasmaType=
         if [[ -d "/usr/bin/" ]]; then
