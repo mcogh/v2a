@@ -3,12 +3,10 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![English Version](https://img.shields.io/badge/English-Version-blue)](documents/en/README_EN.md)
 
-Xray-core/sing-box 一键脚本快速安装
+
 
 ## 功能
 
-*   **多核心支持:** 支持 Xray-core 和 sing-box.
-*   **多协议支持:** 支持 VLESS, VMess, Trojan, Hysteria2, Tuic, NaiveProxy 等多种协议.
 *   **自动TLS:** 自动申请和续订 SSL 证书.
 *   **易于管理:** 提供简单的菜单来管理用户、端口和配置.
 *   **订阅支持:** 生成和管理订阅链接.
