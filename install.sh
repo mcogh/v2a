@@ -70,7 +70,6 @@ checkCentosSELinux() {
     if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" == "Enforcing" ]; then
         echoContent yellow "# 注意事项"
         echoContent yellow "检测到SELinux已开启，请手动关闭，教程如下"
-        echoContent yellow "https://www.v2a.example.com/archives/1684115970026#centos-%E5%85%B3%E9%97%ADselinux"
         exit 0
     fi
 }
@@ -1817,14 +1816,14 @@ initTLSNginxConfig() {
             echoContent yellow "\n ---> 域名: ${domain}"
         else
             echo
-            echoContent yellow "请输入要配置的域名 例: www.v2a.example.com --->"
+            echoContent yellow "请输入要配置的域名 例: www.example.com --->"
             read -r -p "域名:" domain
         fi
     elif [[ -n "${currentHost}" && -n "${lastInstallationConfig}" ]]; then
         domain=${currentHost}
     else
         echo
-        echoContent yellow "请输入要配置的域名 例: www.v2a.example.com --->"
+        echoContent yellow "请输入要配置的域名 例: www.example.com --->"
         read -r -p "域名:" domain
     fi
 
@@ -2128,7 +2127,6 @@ switchDNSAPI() {
 # 初始化dns配置
 initDNSAPIConfig() {
     if [[ "$1" == "cloudflare" ]]; then
-        echoContent yellow "\n CF_Token参考配置教程：https://www.v2a.example.com/archives/1701160377972\n"
         read -r -p "请输入API Token:" cfAPIToken
         if [[ -z "${cfAPIToken}" ]]; then
             echoContent red " ---> 输入为空，请重新输入"
@@ -6643,7 +6641,6 @@ manageCDN() {
         echoContent red "=============================================================="
         echoContent yellow "# 注意事项"
         echoContent yellow "\n教程地址:"
-        echoContent skyBlue "https://www.v2a.example.com/archives/cloudflarezi-xuan-ip"
         echoContent red "\n如对Cloudflare优化不了解，请不要使用"
 
         echoContent yellow "1.CNAME www.digitalocean.com"
@@ -6688,7 +6685,6 @@ manageCDN() {
         fi
     else
         echoContent yellow "\n教程地址:"
-        echoContent skyBlue "https://www.v2a.example.com/archives/cloudflarezi-xuan-ip\n"
         echoContent red " ---> 未检测到可以使用的协议，仅支持ws、grpc、HTTPUpgrade相关的协议"
     fi
 }
@@ -7323,7 +7319,6 @@ ipv6Routing() {
         echoContent red "=============================================================="
         echoContent yellow "# 注意事项\n"
         echoContent yellow "# 注意事项"
-        echoContent yellow "# 使用教程：https://www.v2a.example.com/archives/1683226921000 \n"
 
         read -r -p "请按照上面示例录入域名:" domainList
         if [[ "${coreInstallType}" == "1" ]]; then
@@ -8161,7 +8156,6 @@ warpRoutingReg() {
     elif [[ "${warpStatus}" == "2" ]]; then
         echoContent yellow "# 注意事项"
         echoContent yellow "# 支持sing-box、Xray-core"
-        echoContent yellow "# 使用教程：https://www.v2a.example.com/archives/1683226921000 \n"
 
         read -r -p "请按照上面示例录入域名:" domainList
         addWireGuardRoute "${type}" outboundTag "${domainList}"
@@ -8304,7 +8298,6 @@ vmessWSRouting() {
     echoContent skyBlue "\n功能 1/${totalProgress} : VMess+WS+TLS 分流"
     echoContent red "\n=============================================================="
     echoContent yellow "# 注意事项"
-    echoContent yellow "# 使用教程：https://www.v2a.example.com/archives/1683226921000 \n"
 
     echoContent yellow "1.添加出站"
     echoContent yellow "2.卸载"
@@ -8331,7 +8324,6 @@ socks5Routing() {
     echoContent yellow "# 流量明文访问"
 
     echoContent yellow "# 仅限正常网络环境下设备间流量转发，禁止用于代理访问。"
-    echoContent yellow "# 使用教程：https://www.v2a.example.com/archives/1683226921000#heading-5 \n"
 
     echoContent yellow "1.Socks5出站"
     echoContent yellow "2.Socks5入站"
@@ -8690,7 +8682,7 @@ setSocks5InboundRouting() {
         addSingBoxOutbound block
         addSingBoxOutbound "01_direct_outbound"
     else
-        echoContent yellow "录入示例:netflix,openai,v2a.example.com\n"
+        echoContent yellow "录入示例:netflix,openai,example.com\n"
         read -r -p "域名:" socks5InboundRoutingDomain
         if [[ -z "${socks5InboundRoutingDomain}" ]]; then
             echoContent red " ---> 域名不可为空"
@@ -8814,7 +8806,7 @@ setSocks5OutboundRouting() {
     echoContent yellow "非增量添加，会替换原有规则\n"
     echoContent yellow "当输入的规则匹配到geosite或者rule_set后会使用相应的规则\n"
     echoContent yellow "如无法匹配则，则使用domain精确匹配\n"
-    echoContent yellow "录入示例:netflix,openai,v2a.example.com\n"
+    echoContent yellow "录入示例:netflix,openai,example.com\n"
     read -r -p "域名:" socks5RoutingOutboundDomain
     if [[ -z "${socks5RoutingOutboundDomain}" ]]; then
         echoContent red " ---> IP不可为空"
@@ -8930,7 +8922,6 @@ dnsRouting() {
     echoContent skyBlue "\n功能 1/${totalProgress} : DNS分流"
     echoContent red "\n=============================================================="
     echoContent yellow "# 注意事项"
-    echoContent yellow "# 使用教程：https://www.v2a.example.com/archives/1683226921000 \n"
 
     echoContent yellow "1.添加"
     echoContent yellow "2.卸载"
@@ -8957,7 +8948,6 @@ sniRouting() {
     echoContent skyBlue "\n功能 1/${totalProgress} : SNI反向代理分流"
     echoContent red "\n=============================================================="
     echoContent yellow "# 注意事项"
-    echoContent yellow "# 使用教程：https://www.v2a.example.com/archives/1683226921000 \n"
     echoContent yellow "# sing-box不支持规则集，仅支持指定域名。\n"
 
     echoContent yellow "1.添加"
@@ -9731,8 +9721,7 @@ addSubscribeMenu() {
 # 添加其他机器clashMeta订阅
 addOtherSubscribe() {
     echoContent yellow "#注意事项:"
-    echoContent yellow "请仔细阅读以下文章： https://www.v2a.example.com/archives/1681804748677"
-    echoContent skyBlue "录入示例：www.v2a.example.com:443:vps1\n"
+    echoContent skyBlue "录入示例：www.example.com:443:vps1\n"
     read -r -p "请输入域名 端口 机器别名:" remoteSubscribeUrl
     if [[ -z "${remoteSubscribeUrl}" ]]; then
         echoContent red " ---> 不可为空"
@@ -10531,7 +10520,6 @@ initRealityClientServersName() {
             realityDomainPort=443
             echoContent skyBlue "\n================ 配置客户端可用的serverNames ===============\n"
             echoContent yellow "#注意事项"
-            echoContent green "Reality目标可用域名列表：https://www.v2a.example.com/archives/1689439383686#heading-3\n"
             echoContent yellow "录入示例:addons.mozilla.org:443\n"
             read -r -p "请输入目标域名，[回车]随机域名，默认端口443:" realityServerName
             if [[ -z "${realityServerName}" ]]; then
@@ -10674,7 +10662,6 @@ manageReality() {
     readSingBoxConfig
 
     if ! echo "${currentInstallProtocolType}" | grep -q -E "7,|8," || [[ -z "${coreInstallType}" ]]; then
-        echoContent red "\n ---> 请先安装Reality协议，参考教程 https://www.v2a.example.com/archives/1680104902581#heading-11"
         exit 0
     fi
 

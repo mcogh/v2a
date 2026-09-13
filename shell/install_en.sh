@@ -72,7 +72,6 @@ checkCentosSELinux() {
     if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" == "Enforcing" ]; then
         echoContent yellow "# Notes"
         echoContent yellow "It is detected that SELinux is turned on. Please turn it off manually. The tutorial is as follows"
-        echoContent yellow "https://www.v2a.example.com/archives/1684115970026#centos-%E5%85%B3%E9%97%ADselinux"
         exit 0
     fi
 }
@@ -1094,7 +1093,6 @@ unInstallSingBox() {
     readInstallType
 
     if [[ -n "${singBoxConfigPath}" ]]; then
-        echoContent yellow "https://www.v2a.example.com/archives/1679931532764#heading-8 "
         handleSingBox stop
         handleSingBox start
     else
@@ -2122,9 +2120,9 @@ initDNSAPIConfig() {
 switchSSLType() {
     if [[ -z "${sslType}" ]]; then
         echoContent red "\n=============================================================="
-            echoContent yellow "Please enter the domain name to be configured: www.v2a.example.com --->"
+            echoContent yellow "Please enter the domain name to be configured: www.example.com --->"
         echoContent yellow "2.zerossl"
-        echoContent yellow "Please enter the domain name to be configured: www.v2a.example.com --->"
+        echoContent yellow "Please enter the domain name to be configured: www.example.com --->"
         echoContent red "=============================================================="
         read -r -p "Please select [Enter] to use the default:" selectSSLType
         case ${selectSSLType} in
@@ -5979,7 +5977,6 @@ showAccounts() {
     fi
     # trojan grpc
     if echo ${currentInstallProtocolType} | grep -q ",2,"; then
-    echoContent skyBlue "https://www.v2a.example.com/archives/cloudflarezi-xuan-ip"
         jq .inbounds[0].settings.clients ${configPath}04_trojan_gRPC_inbounds.json | jq -c '.[]' | while read -r user; do
             local email=
             email=$(echo "${user}" | jq -r .email)
@@ -6562,7 +6559,6 @@ manageCDN() {
         echoContent red "=============================================================="
     echoContent yellow "# If you need to customize, please manually copy the template file to ${nginxStaticPath} \n"
     echoContent yellow "1.Newbie guide"
-        echoContent skyBlue "https://www.v2a.example.com/archives/cloudflarezi-xuan-ip"
         echoContent red " ---> The port is illegal"
 
         echoContent yellow "1.CNAME www.digitalocean.com"
@@ -6606,7 +6602,6 @@ manageCDN() {
         fi
     else
     echoContent yellow "4.Enterprise Station"
-        echoContent skyBlue "https://www.v2a.example.com/archives/cloudflarezi-xuan-ip\n"
     echoContent red "================================================== =========== ===="
     fi
 }
@@ -8043,7 +8038,6 @@ warpRoutingReg() {
     echoContent skyBlue "\nProgress$1/${totalProgress}: Multi-user management"
     echoContent red "=============================================================="
 
-        echoContent yellow "# Tutorial: https://www.v2a.example.com/archives/ba-he-yi-jiao-ben-yu-ming-fen-liu-jiao-cheng \n"
         echoContent yellow "# Notes\n"
         echoContent yellow "1.All diversion rules set will be deleted"
         echoContent yellow "2.All outbound rules except IPv6 will be deleted"
@@ -8258,7 +8252,6 @@ socks5InboundRoutingMenu() {
 
     echoContent yellow "4.Uninstall WARP distribution"
         echoContent yellow "# Notes"
-        echoContent yellow "# Tutorial: https://www.v2a.example.com/archives/ba-he-yi-jiao-ben-yu-ming-fen-liu-jiao-cheng \n"
         echoContent yellow "# Notes\n"
     read -r -p "Please select:" selectType
     case ${selectType} in
@@ -8377,7 +8370,6 @@ showSingBoxRoutingRules() {
             echoContent skyBlue "$(jq .outbounds[0] ${singBoxConfigPath}socks5_outbound.json)"
         elif [[ "$1" == "socks5_02_inbound_route" && -f "${singBoxConfigPath}20_socks5_inbounds.json" ]]; then
         echoContent yellow "# Notes"
-        echoContent yellow "# Tutorial: https://www.v2a.example.com/archives/ba-he-yi-jiao-ben-yu-ming-fen-liu-jiao-cheng \n"
             echoContent skyBlue "$(jq .outbounds[0] ${singBoxConfigPath}socks5_outbound.json)"
         fi
     fi
@@ -8568,7 +8560,6 @@ setSocks5InboundRouting() {
     echoContent skyBlue "\nProgress$1/${totalProgress}: WARP offload"
     echoContent yellow "3.VMess+WS+TLS to unlock streaming media"
     echoContent yellow "# Notes"
-    echoContent yellow "# Tutorial: https://www.v2a.example.com/archives/ba-he-yi-jiao-ben-yu-ming-fen-liu-jiao-cheng \n"
     echoContent yellow "1.Add outbound"
 
     read -r -p "Allow all websites? Select [y/n]:" socks5InboundRoutingDomainStatus
@@ -8699,7 +8690,6 @@ setSocks5OutboundRouting() {
     echoContent red "=============================================================="
     echoContent skyBlue "\nProgress$1/${totalProgress}: WARP offload [third party]"
     echoContent yellow "# Notes"
-    echoContent yellow "# Tutorial: https://www.v2a.example.com/archives/ba-he-yi-jiao-ben-yu-ming-fen-liu-jiao-cheng \n"
     echoContent yellow "1.Add outbound"
     echoContent yellow "2.Uninstall"
     echoContent yellow "Input example:netflix,openai\n"
@@ -8821,7 +8811,6 @@ dnsRouting() {
     echoContent yellow "Example of domain name entry: netflix,openai\n"
 
     echoContent yellow "# Notes"
-    echoContent yellow "# Tutorial: https://www.v2a.example.com/archives/ba-he-yi-jiao-ben-yu-ming-fen-liu-jiao-cheng \n"
     read -r -p "Please select:" selectType
 
     case ${selectType} in
@@ -8848,7 +8837,6 @@ sniRouting() {
     echoContent yellow "2.Uninstall"
     echoContent yellow "# Notes"
 
-    echoContent yellow "# Tutorial: https://www.v2a.example.com/archives/ba-he-yi-jiao-ben-yu-ming-fen-liu-jiao-cheng \n"
     echoContent yellow "1.Add"
     read -r -p "Please select:" selectType
 
