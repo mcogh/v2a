@@ -4,7 +4,7 @@ about: 请按照模版提交
 assignees: ''
 ---
 
-不按照模版提交，一律关闭，反馈之前请仔细阅读[脚本异常处理](https://www.v2a.example.com/archives/1684115970026)，[客户端使用教程](https://www.v2a.example.com/archives/1695534611317)、[八合一脚本从入门到精通](https://www.v2a.example.com/archives/1710141233)。
+不按照模版提交，一律关闭，反馈之前请先阅读[项目说明](https://github.com/mcogh/v2a)。
 
 如果低版本升级高版本出现问题，建议使用**20.卸载脚本**卸载后重新安装
 

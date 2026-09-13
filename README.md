@@ -1,12 +1,6 @@
 # v2a
 
-- [感谢 JetBrains 提供的非商业开源软件开发授权](https://www.jetbrains.com/?from=v2a)
-
-
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Telegram Channel](https://img.shields.io/badge/Telegram-Channel-blue)](https://t.me/v2rayAgentChannel)
-[![Telegram Group](https://img.shields.io/badge/Telegram-Group-blue)](https://t.me/technologyshare)
-[![Official Website](https://img.shields.io/badge/Website-v2ray--agent.com-blue)](https://www.v2a.example.com/)
 [![English Version](https://img.shields.io/badge/English-Version-blue)](documents/en/README_EN.md)
 
 Xray-core/sing-box 一键脚本快速安装
@@ -21,7 +15,6 @@ Xray-core/sing-box 一键脚本快速安装
 *   **分流管理:** 提供wireguard、IPv6、Socks5、DNS、VMess(ws)、SNI反向代理，可用于解锁流媒体、规避IP验证等作用.
 *   **目标域名管理:** 提供域名黑名单管理，可用于禁止访问指定网站.
 *   **BT下载管理:** 可用于禁止下载P2P相关内容.
-*   **更多内容请访问[官方网站](https://www.v2a.example.com/categories/jiao-cheng)、[备用](https://www.592083.com/categories/jiao-cheng)、[X](https://x.com/v2rayagent)**
 
 ## 快速开始
 
@@ -46,39 +39,15 @@ wget -P /root -N "https://raw.githubusercontent.com/mcogh/v2a/master/shell/docke
 
 ### 使用 
 
-* [Docker Reality 使用说明](https://www.v2a.example.com/archives/019e1b57-92b3-70ab-8919-cdf8c0bb4fe9)
- 
 安装后，运行以下命令可再次打开管理菜单:
 
 ```
 vasmad
 ```
 
-## 文档和指南
-
-*   [八合一脚本从入门到精通](https://www.v2a.example.com/archives/1710141233)
-*   [脚本快速搭建教程](https://www.v2a.example.com/archives/1682491479771)
-*   [脚本使用注意事项](https://www.v2a.example.com/archives/1679931532764)
-*   [脚本异常处理](https://www.v2a.example.com/archives/1684115970026)   
-*   [VPS选购攻略](https://www.v2a.example.com/archives/1679975663984)
-*   [垃圾VPS大救星，hysteria2最新协议一键搭建](https://www.v2a.example.com/archives/1697162969693)
-*   [RackNerd低价 联通AS4837套餐，年付10美起](https://www.v2a.example.com/archives/racknerdtao-can-zheng-li-nian-fu-10mei-yuan)
-*   [搬瓦工优质套餐推荐](https://www.v2a.example.com/archives/2023nian-ban-wa-gong-ji-fang-tui-jian)
-*   [DMIT优质套餐推荐](https://www.v2a.example.com/archives/1679159868033)
-
 ## 社区与支持
 
-*   **Telegram:** [频道](https://t.me/v2rayAgentChannel) | [群组](https://t.me/technologyshare)
-*   **网站:** [官网](https://www.v2a.example.com/) | [备用](https://www.592083.xyz/)
 *   **反馈:** [提交 issue](https://github.com/mcogh/v2a/issues)
-*   **X:** [链接](https://x.com/v2rayagent)
-
-## 捐赠
-
-感谢您对开源项目的关注和支持。如果您觉得这个项目对您有帮助，欢迎通过以下方式进行捐赠。
-
-*   [购买VPS捐赠](https://www.v2a.example.com/categories/vps)
-*   [通过虚拟币向我捐赠](https://www.v2a.example.com/1679123834836)
 
 ## 许可证
 
