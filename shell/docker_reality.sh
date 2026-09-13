@@ -42,7 +42,7 @@ showQRCode() {
 # 默认值
 # ---------------------------------------------------------------------------
 nonInteractive=0
-dataDir="/etc/v2a/docker/"
+dataDir="/etc/v2ray-agent/docker/"
 installMode=""
 port=""
 xhttpPort=""
@@ -80,7 +80,7 @@ showHelp() {
     echoContent "white" ""
     echoContent "white" "选项："
     echoContent "white" "  --non-interactive       非交互运行；所有必填值须通过参数提供"
-    echoContent "white" "  --data-dir <路径>       持久化配置/数据目录（默认：/etc/v2a/docker/）"
+    echoContent "white" "  --data-dir <路径>       持久化配置/数据目录（默认：/etc/v2ray-agent/docker/）"
     echoContent "white" "  --install-mode <模式>   安装模式：vision / xhttp / all"
     echoContent "white" "  --port <端口>           Vision 或单协议模式的外部监听端口（留空则随机）"
     echoContent "white" "  --xhttp-port <端口>     XHTTP 模式端口（留空则随机）"
@@ -100,8 +100,8 @@ showHelp() {
     echoContent "white" "  2. 若两者都不存在，则显示安装菜单；若任一存在，则显示用户管理/重新安装/启动或重建菜单。"
     echoContent "white" "  3. 安装时可选 Reality Vision、Reality XHTTP 或全部安装；XHTTP 会额外使用 path 输入。"
     echoContent "white" "  4. 非交互模式需要显式提供所有值，但 privateKey/uuid/email 留空时可自动生成/推导。"
-    echoContent "white" "  5. 运行数据目录默认为 /etc/v2a/docker/；可用 --data-dir 覆盖以用于 QA 或自定义路径。"
-    echoContent "white" "  6. 若脚本不是从 /etc/v2a/docker_reality.sh 运行，则会迁移脚本并创建 vasmad 快捷方式。"
+    echoContent "white" "  5. 运行数据目录默认为 /etc/v2ray-agent/docker/；可用 --data-dir 覆盖以用于 QA 或自定义路径。"
+    echoContent "white" "  6. 若脚本不是从 /etc/v2ray-agent/docker_reality.sh 运行，则会迁移脚本并创建 vasmad 快捷方式。"
     echoContent "white" ""
     echoContent "yellow" "QA / 测试："
     echoContent "white" "  V2RAY_AGENT_FORCE_NO_DOCKER=1  跳过 Docker 可用性检查（测试环境）"
@@ -784,7 +784,7 @@ checkEnvironment() {
 
 # selfInstallShortcut — 参考 install.sh 的 aliasInstall 逻辑，为本脚本创建稳定位置与 vasmad 快捷方式。
 selfInstallShortcut() {
-    local targetScript="/etc/v2a/docker_reality.sh"
+    local targetScript="/etc/v2ray-agent/docker_reality.sh"
     local currentScript=""
     local shortcutCreated="false"
 
@@ -797,7 +797,7 @@ selfInstallShortcut() {
         currentScript="$0"
     fi
 
-    mkdir -p /etc/v2a
+    mkdir -p /etc/v2ray-agent
 
     if [[ "${currentScript}" != "${targetScript}" ]]; then
         if ! mv "${currentScript}" "${targetScript}" 2>/dev/null; then
@@ -1582,7 +1582,7 @@ userManageMenu() {
 # uninstallDockerReality — 卸载 Docker Reality 独立脚本生成的容器、配置与快捷方式。
 uninstallDockerReality() {
     local answer=""
-    local installedScript="/etc/v2a/docker_reality.sh"
+    local installedScript="/etc/v2ray-agent/docker_reality.sh"
 
     answer="$(promptValue $'是否确认卸载 Docker Reality 安装内容？[y/N]：' "")"
     case "${answer}" in

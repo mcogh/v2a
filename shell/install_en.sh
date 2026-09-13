@@ -98,7 +98,7 @@ checkSystem() {
         upgrade="apk update"
         removeType='apk del'
         nginxConfigPath=/etc/nginx/http.d/
-    elif { [[ -f "/etc/issue" ]] && grep -qi "debian" /etc/issue; } || { [[ -f "/proc/version" ]] && grep -qi "debian" /proc/version; } || { [[ -f "/etc/os-release" ]] && grep -qi "ID=debian" /etc/issue; }; then
+    elif { [[ -f "/etc/issue" ]] && grep -qi "debian" /etc/issue; } || { [[ -f "/proc/version" ]] && grep -qi "debian" /proc/version; } || { [[ -f "/etc/os-release" ]] && grep -qi "ID=debian" /etc/os-release; }; then
         release="debian"
         installType='apt -y install'
         upgrade="apt update"
@@ -428,7 +428,7 @@ buildXrayXHTTPTLSConfig() {
     local port="$1" domain="$2" path="$3" clients_json="$4"
     jq -n --arg domain "${domain}" --arg path "/${path#/}xHTTP" --argjson clients "${clients_json}" --argjson port "${port}" '
       {inbounds:[
-        {listen:"127.0.0.1",port:45988,protocol:"vless",tag:"VLESSXHTTPTLS",settings:{clients:$clients,decryption:"none"},streamSettings:{network:"xhttp",security:"tls",tlsSettings:{serverName:$domain,minVersion:"1.2",rejectUnknownSni:true,certificates:[{certificateFile:("/etc/v2a/tls/"+$domain+".crt"),keyFile:("/etc/v2a/tls/"+$domain+".key")}]},xhttpSettings:{host:$domain,path:$path,mode:"auto"}}},
+        {listen:"127.0.0.1",port:45988,protocol:"vless",tag:"VLESSXHTTPTLS",settings:{clients:$clients,decryption:"none"},streamSettings:{network:"xhttp",security:"tls",tlsSettings:{serverName:$domain,minVersion:"1.2",rejectUnknownSni:true,certificates:[{certificateFile:("/etc/v2ray-agent/tls/"+$domain+".crt"),keyFile:("/etc/v2ray-agent/tls/"+$domain+".key")}]},xhttpSettings:{host:$domain,path:$path,mode:"auto"}}},
         {listen:"0.0.0.0",port:$port,protocol:"dokodemo-door",tag:"dokodemo-in-VLESSXHTTPTLS",settings:{address:"127.0.0.1",port:45988,network:"tcp"},streamSettings:{network:"tcp",security:"none"}}
       ],routing:{rules:[{type:"field",inboundTag:["dokodemo-in-VLESSXHTTPTLS"],outboundTag:"z_direct_outbound"}]}}'
 }
@@ -559,8 +559,8 @@ commitAccountTransaction() {
             return 1
         fi
     done <"${accountTransactionManifest}"
-    if [[ -x "/etc/v2a/xray/xray" && -d "/etc/v2a/xray/conf" ]] && \
-        ! /etc/v2a/xray/xray run -test -confdir /etc/v2a/xray/conf >/dev/null 2>&1; then
+    if [[ -x "/etc/v2ray-agent/xray/xray" && -d "/etc/v2ray-agent/xray/conf" ]] && \
+        ! /etc/v2ray-agent/xray/xray run -test -confdir /etc/v2ray-agent/xray/conf >/dev/null 2>&1; then
         echoContent red "Xray account configuration validation failed; changes were rolled back."
         rollbackAccountTransaction
         reloadCore transaction >/dev/null 2>&1 || true
@@ -660,13 +660,13 @@ readInstallType() {
     singBoxConfigPath=
 
     #1.Detect the installation directory
-    if [[ -d "/etc/v2a" ]]; then
-        if [[ -f "/etc/v2a/xray/xray" ]]; then
-            if [[ -d "/etc/v2a/xray/conf" ]] && [[ -f "/etc/v2a/xray/conf/02_VLESS_TCP_inbounds.json" || -f "/etc/v2a/xray/conf/02_trojan_TCP_inbounds.json" || -f "/etc/v2a/xray/conf/07_VLESS_vision_reality_inbounds.json" || -f "/etc/v2a/xray/conf/12_VLESS_XHTTP_inbounds.json" || -f "/etc/v2a/xray/conf/14_VLESS_XHTTP_TLS_inbounds.json" ]]; then
+    if [[ -d "/etc/v2ray-agent" ]]; then
+        if [[ -f "/etc/v2ray-agent/xray/xray" ]]; then
+            if [[ -d "/etc/v2ray-agent/xray/conf" ]] && [[ -f "/etc/v2ray-agent/xray/conf/02_VLESS_TCP_inbounds.json" || -f "/etc/v2ray-agent/xray/conf/02_trojan_TCP_inbounds.json" || -f "/etc/v2ray-agent/xray/conf/07_VLESS_vision_reality_inbounds.json" || -f "/etc/v2ray-agent/xray/conf/12_VLESS_XHTTP_inbounds.json" || -f "/etc/v2ray-agent/xray/conf/14_VLESS_XHTTP_TLS_inbounds.json" ]]; then
                 # xray-core
                 #xray-core
-                configPath=/etc/v2a/xray/conf/
-                ctlPath=/etc/v2a/xray/xray
+                configPath=/etc/v2ray-agent/xray/conf/
+                ctlPath=/etc/v2ray-agent/xray/xray
                 coreInstallType=1
 
                 if [[ -f "${configPath}07_VLESS_vision_reality_inbounds.json" ]]; then
@@ -678,15 +678,15 @@ readInstallType() {
                 if [[ -f "${configPath}14_VLESS_XHTTP_TLS_inbounds.json" ]]; then
                     realityStatus=14
                 fi
-                if [[ -f "/etc/v2a/sing-box/sing-box" ]] && [[ -f "/etc/v2a/sing-box/conf/config/06_hysteria2_inbounds.json" || -f "/etc/v2a/sing-box/conf/config/09_tuic_inbounds.json" || -f "/etc/v2a/sing-box/conf/config/20_socks5_inbounds.json" ]]; then
-                    singBoxConfigPath=/etc/v2a/sing-box/conf/config/
+                if [[ -f "/etc/v2ray-agent/sing-box/sing-box" ]] && [[ -f "/etc/v2ray-agent/sing-box/conf/config/06_hysteria2_inbounds.json" || -f "/etc/v2ray-agent/sing-box/conf/config/09_tuic_inbounds.json" || -f "/etc/v2ray-agent/sing-box/conf/config/20_socks5_inbounds.json" ]]; then
+                    singBoxConfigPath=/etc/v2ray-agent/sing-box/conf/config/
                 fi
             fi
-        elif [[ -f "/etc/v2a/sing-box/sing-box" && -f "/etc/v2a/sing-box/conf/config.json" ]]; then
-            ctlPath=/etc/v2a/sing-box/sing-box
+        elif [[ -f "/etc/v2ray-agent/sing-box/sing-box" && -f "/etc/v2ray-agent/sing-box/conf/config.json" ]]; then
+            ctlPath=/etc/v2ray-agent/sing-box/sing-box
             coreInstallType=2
-            configPath=/etc/v2a/sing-box/conf/config/
-            singBoxConfigPath=/etc/v2a/sing-box/conf/config/
+            configPath=/etc/v2ray-agent/sing-box/conf/config/
+            singBoxConfigPath=/etc/v2ray-agent/sing-box/conf/config/
         fi
     fi
 }
@@ -907,9 +907,9 @@ checkBTPanel() {
                     checkBTPanel
                 else
                     domain=${btDomain}
-                    if [[ ! -f "/etc/v2a/tls/${btDomain}.crt" && ! -f "/etc/v2a/tls/${btDomain}.key" ]]; then
-                        ln -s "/www/server/panel/vhost/cert/${btDomain}/fullchain.pem" "/etc/v2a/tls/${btDomain}.crt"
-                        ln -s "/www/server/panel/vhost/cert/${btDomain}/privkey.pem" "/etc/v2a/tls/${btDomain}.key"
+                    if [[ ! -f "/etc/v2ray-agent/tls/${btDomain}.crt" && ! -f "/etc/v2ray-agent/tls/${btDomain}.key" ]]; then
+                        ln -s "/www/server/panel/vhost/cert/${btDomain}/fullchain.pem" "/etc/v2ray-agent/tls/${btDomain}.crt"
+                        ln -s "/www/server/panel/vhost/cert/${btDomain}/privkey.pem" "/etc/v2ray-agent/tls/${btDomain}.key"
                     fi
 
                     nginxStaticPath="/www/wwwroot/${btDomain}/html/"
@@ -949,9 +949,9 @@ check1Panel() {
                     check1Panel
                 else
                     domain=${btDomain}
-                    if [[ ! -f "/etc/v2a/tls/${btDomain}.crt" && ! -f "/etc/v2a/tls/${btDomain}.key" ]]; then
-                        ln -s "/opt/1panel/apps/openresty/openresty/www/sites/${btDomain}/ssl/fullchain.pem" "/etc/v2a/tls/${btDomain}.crt"
-                        ln -s "/opt/1panel/apps/openresty/openresty/www/sites/${btDomain}/ssl/privkey.pem" "/etc/v2a/tls/${btDomain}.key"
+                    if [[ ! -f "/etc/v2ray-agent/tls/${btDomain}.crt" && ! -f "/etc/v2ray-agent/tls/${btDomain}.key" ]]; then
+                        ln -s "/opt/1panel/apps/openresty/openresty/www/sites/${btDomain}/ssl/fullchain.pem" "/etc/v2ray-agent/tls/${btDomain}.crt"
+                        ln -s "/opt/1panel/apps/openresty/openresty/www/sites/${btDomain}/ssl/privkey.pem" "/etc/v2ray-agent/tls/${btDomain}.key"
                     fi
 
                     nginxStaticPath="/opt/1panel/apps/openresty/openresty/www/sites/${btDomain}/index/"
@@ -1014,10 +1014,18 @@ allowPort() {
 # Get public IP
 getPublicIP() {
     local type=4
+    local force=
     if [[ -n "$1" ]]; then
-        type=$1
+        if [[ "$1" == "force" ]]; then
+            force=true
+        else
+            type=$1
+        fi
     fi
-    if [[ -n "${currentHost}" && -z "$1" ]] && [[ "${singBoxVLESSRealityVisionServerName}" == "${currentHost}" || "${singBoxVLESSRealityGRPCServerName}" == "${currentHost}" || "${xrayVLESSRealityServerName}" == "${currentHost}" ]]; then
+    if [[ "$2" == "force" ]]; then
+        force=true
+    fi
+    if [[ -z "${force}" && -n "${currentHost}" && -z "$1" ]] && [[ "${singBoxVLESSRealityVisionServerName}" == "${currentHost}" || "${singBoxVLESSRealityGRPCServerName}" == "${currentHost}" || "${xrayVLESSRealityServerName}" == "${currentHost}" ]]; then
         echo "${currentHost}"
     else
         local currentIP=
@@ -1078,12 +1086,12 @@ readLastInstallationConfig() {
 unInstallSingBox() {
     local type=$1
     if [[ -n "${singBoxConfigPath}" ]]; then
-        if grep -q 'tuic' </etc/v2a/sing-box/conf/config.json && [[ "${type}" == "tuic" ]]; then
+        if grep -q 'tuic' </etc/v2ray-agent/sing-box/conf/config.json && [[ "${type}" == "tuic" ]]; then
             rm "${singBoxConfigPath}09_tuic_inbounds.json"
     echoContent green " ---> Check and install updates [The new machine will be very slow. If there is no response for a long time, please stop it manually and then execute it again]"
         fi
 
-        if grep -q 'hysteria2' </etc/v2a/sing-box/conf/config.json && [[ "${type}" == "hysteria2" ]]; then
+        if grep -q 'hysteria2' </etc/v2ray-agent/sing-box/conf/config.json && [[ "${type}" == "hysteria2" ]]; then
             rm "${singBoxConfigPath}06_hysteria2_inbounds.json"
         echoContent green " ---> Install wget"
         fi
@@ -1098,7 +1106,7 @@ unInstallSingBox() {
     else
         handleSingBox stop
         rm /etc/systemd/system/sing-box.service
-        rm -rf /etc/v2a/sing-box/*
+        rm -rf /etc/v2ray-agent/sing-box/*
         echoContent green " ---> Install curl"
     fi
 }
@@ -1224,8 +1232,8 @@ readConfigHostPathUUID() {
             currentPath=$(jq -r .inbounds[0].transport.path "${singBoxConfigPath}11_VMess_HTTPUpgrade_inbounds.json" | awk -F "[/]" '{print $2}')
         fi
     fi
-    if [[ -f "/etc/v2a/cdn" ]] && [[ -n "$(head -1 /etc/v2a/cdn)" ]]; then
-        currentCDNAddress=$(head -1 /etc/v2a/cdn)
+    if [[ -f "/etc/v2ray-agent/cdn" ]] && [[ -n "$(head -1 /etc/v2ray-agent/cdn)" ]]; then
+        currentCDNAddress=$(head -1 /etc/v2ray-agent/cdn)
     else
         currentCDNAddress="${currentHost}"
     fi
@@ -1308,11 +1316,11 @@ showInstallStatus() {
 cleanUp() {
     if [[ "$1" == "xrayDel" ]]; then
         handleXray stop
-        rm -rf /etc/v2a/xray/*
+        rm -rf /etc/v2ray-agent/xray/*
     elif [[ "$1" == "singBoxDel" ]]; then
         handleSingBox stop
-        rm -rf /etc/v2a/sing-box/conf/config.json >/dev/null 2>&1
-        rm -rf /etc/v2a/sing-box/conf/config/* >/dev/null 2>&1
+        rm -rf /etc/v2ray-agent/sing-box/conf/config.json >/dev/null 2>&1
+        rm -rf /etc/v2ray-agent/sing-box/conf/config/* >/dev/null 2>&1
     fi
 }
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -1332,30 +1340,30 @@ fi
 
 #Initialize the installation directory
 mkdirTools() {
-    mkdir -p /etc/v2a/tls
-    mkdir -p /etc/v2a/subscribe_local/default
-    mkdir -p /etc/v2a/subscribe_local/clashMeta
+    mkdir -p /etc/v2ray-agent/tls
+    mkdir -p /etc/v2ray-agent/subscribe_local/default
+    mkdir -p /etc/v2ray-agent/subscribe_local/clashMeta
 
-    mkdir -p /etc/v2a/subscribe_remote/default
-    mkdir -p /etc/v2a/subscribe_remote/clashMeta
+    mkdir -p /etc/v2ray-agent/subscribe_remote/default
+    mkdir -p /etc/v2ray-agent/subscribe_remote/clashMeta
 
-    mkdir -p /etc/v2a/subscribe/default
-    mkdir -p /etc/v2a/subscribe/clashMetaProfiles
-    mkdir -p /etc/v2a/subscribe/clashMeta
+    mkdir -p /etc/v2ray-agent/subscribe/default
+    mkdir -p /etc/v2ray-agent/subscribe/clashMetaProfiles
+    mkdir -p /etc/v2ray-agent/subscribe/clashMeta
 
-    mkdir -p /etc/v2a/subscribe/sing-box
-    mkdir -p /etc/v2a/subscribe/sing-box_profiles
-    mkdir -p /etc/v2a/subscribe_local/sing-box
+    mkdir -p /etc/v2ray-agent/subscribe/sing-box
+    mkdir -p /etc/v2ray-agent/subscribe/sing-box_profiles
+    mkdir -p /etc/v2ray-agent/subscribe_local/sing-box
 
-    mkdir -p /etc/v2a/xray/conf
-    mkdir -p /etc/v2a/xray/reality_scan
-    mkdir -p /etc/v2a/xray/tmp
+    mkdir -p /etc/v2ray-agent/xray/conf
+    mkdir -p /etc/v2ray-agent/xray/reality_scan
+    mkdir -p /etc/v2ray-agent/xray/tmp
     mkdir -p /etc/systemd/system/
     mkdir -p /tmp/v2a-tls/
 
-    mkdir -p /etc/v2a/warp
+    mkdir -p /etc/v2ray-agent/warp
 
-    mkdir -p /etc/v2a/sing-box/conf/config
+    mkdir -p /etc/v2ray-agent/sing-box/conf/config
 
     mkdir -p /usr/share/nginx/html/
 }
@@ -1380,10 +1388,10 @@ installTools() {
         echoContent green " ---> install unzip"
 
     if [[ "${release}" != "centos" ]]; then
-        ${upgrade} >/etc/v2a/install.log 2>&1
+        ${upgrade} >/etc/v2ray-agent/install.log 2>&1
     fi
 
-    if grep <"/etc/v2a/install.log" -q "changed"; then
+    if grep <"/etc/v2ray-agent/install.log" -q "changed"; then
         ${updateReleaseInfoChange} >/dev/null 2>&1
     fi
 
@@ -1546,12 +1554,12 @@ installTools() {
                 rm -f "${acmeInstallScript}"
                 return 1
             fi
-            sh "${acmeInstallScript}" >/etc/v2a/tls/acme.log 2>&1
+            sh "${acmeInstallScript}" >/etc/v2ray-agent/tls/acme.log 2>&1
             rm -f "${acmeInstallScript}"
 
             if [[ ! -d "$HOME/.acme.sh" ]] || [[ -z $(find "$HOME/.acme.sh/acme.sh") ]]; then
                 echoContent red "2.There is a bug in the acme.sh script, please check [https://github.com/acmesh-official/acme.sh] issues"
-                tail -n 100 /etc/v2a/tls/acme.log
+                tail -n 100 /etc/v2ray-agent/tls/acme.log
             echoContent yellow "Installed protocol: \c"
                 echoContent red "3.For pure IPv6 machines, please set up NAT64.You can execute the following command. If it still does not work after adding the following command, please try to change to another NAT64"
         echoContent red " ---> The official WARP client does not support ARM architecture"
@@ -1966,7 +1974,7 @@ singBoxNginxConfig() {
     nginxVersion=$(nginx -v 2>&1)
 
     local singBoxNginxSSL=
-    singBoxNginxSSL="ssl_certificate /etc/v2a/tls/${domain}.crt;ssl_certificate_key /etc/v2a/tls/${domain}.key;"
+    singBoxNginxSSL="ssl_certificate /etc/v2ray-agent/tls/${domain}.crt;ssl_certificate_key /etc/v2ray-agent/tls/${domain}.key;"
 
     if echo "${nginxVersion}" | grep -q "1.25" && [[ $(echo "${nginxVersion}" | awk -F "[.]" '{print $3}') -gt 0 ]] || [[ $(echo "${nginxVersion}" | awk -F "[.]" '{print $2}') -gt 25 ]]; then
         nginxH2Conf="listen ${port} so_keepalive=on ssl;http2 on;"
@@ -2095,7 +2103,7 @@ initDNSAPIConfig() {
         else
             echo
             if ! echo "${dnsTLSDomain}" | grep -q "\." || [[ -z $(echo "${dnsTLSDomain}" | awk -F "[.]" '{print $1}') ]]; then
-            echoContent green " ---> value: ${txtValue}"
+            echoContent green " ---> This domain does not support applying for a wildcard certificate, it is recommended to use this format [xx.xx.xx]"
                 exit 0
             fi
             read -r -p "Use *.${dnsTLSDomain} to request a wildcard certificate via API? [y/n]:" dnsAPIStatus
@@ -2143,7 +2151,7 @@ switchSSLType() {
                 echoContent red " ---> Give up"
             exit 0
         fi
-        echo "${sslType}" >/etc/v2a/tls/ssl_type
+        echo "${sslType}" >/etc/v2ray-agent/tls/ssl_type
     fi
 }
 
@@ -2180,13 +2188,13 @@ acmeInstallSSL() {
 
     if [[ "${dnsAPIType}" == "cloudflare" ]]; then
                     echoContent green " ---> Generating certificate"
-        sudo CF_Token="${cfAPIToken}" "$HOME/.acme.sh/acme.sh" --issue -d "${dnsAPIDomain}" ${dnsAPIExtraDomain} --dns dns_cf -k ec-256 --server "${sslType}" ${sslIPv6} 2>&1 | tee -a /etc/v2a/tls/acme.log >/dev/null
+        sudo CF_Token="${cfAPIToken}" "$HOME/.acme.sh/acme.sh" --issue -d "${dnsAPIDomain}" ${dnsAPIExtraDomain} --dns dns_cf -k ec-256 --server "${sslType}" ${sslIPv6} 2>&1 | tee -a /etc/v2ray-agent/tls/acme.log >/dev/null
     elif [[ "${dnsAPIType}" == "aliyun" ]]; then
         echoContent green " ---> Generating certificate"
-        sudo Ali_Key="${aliKey}" Ali_Secret="${aliSecret}" "$HOME/.acme.sh/acme.sh" --issue -d "${dnsAPIDomain}" ${dnsAPIExtraDomain} --dns dns_ali -k ec-256 --server "${sslType}" ${sslIPv6} 2>&1 | tee -a /etc/v2a/tls/acme.log >/dev/null
+        sudo Ali_Key="${aliKey}" Ali_Secret="${aliSecret}" "$HOME/.acme.sh/acme.sh" --issue -d "${dnsAPIDomain}" ${dnsAPIExtraDomain} --dns dns_ali -k ec-256 --server "${sslType}" ${sslIPv6} 2>&1 | tee -a /etc/v2ray-agent/tls/acme.log >/dev/null
     else
         echoContent green " ---> Certificate detected"
-        sudo "$HOME/.acme.sh/acme.sh" --issue -d "${tlsDomain}" --standalone -k ec-256 --server "${sslType}" ${sslIPv6} 2>&1 | tee -a /etc/v2a/tls/acme.log >/dev/null
+        sudo "$HOME/.acme.sh/acme.sh" --issue -d "${tlsDomain}" --standalone -k ec-256 --server "${sslType}" ${sslIPv6} 2>&1 | tee -a /etc/v2ray-agent/tls/acme.log >/dev/null
     fi
 }
 # Custom port
@@ -2323,16 +2331,16 @@ installTLS() {
     readAcmeTLS
     local tlsDomain=${domain}
 
-    if [[ -f "/etc/v2a/tls/${tlsDomain}.crt" && -f "/etc/v2a/tls/${tlsDomain}.key" && -n $(cat "/etc/v2a/tls/${tlsDomain}.crt") ]] || [[ -d "$HOME/.acme.sh/${tlsDomain}_ecc" && -f "$HOME/.acme.sh/${tlsDomain}_ecc/${tlsDomain}.key" && -f "$HOME/.acme.sh/${tlsDomain}_ecc/${tlsDomain}.cer" ]] || [[ "${installedDNSAPIStatus}" == "true" ]]; then
+    if [[ -f "/etc/v2ray-agent/tls/${tlsDomain}.crt" && -f "/etc/v2ray-agent/tls/${tlsDomain}.key" && -n $(cat "/etc/v2ray-agent/tls/${tlsDomain}.crt") ]] || [[ -d "$HOME/.acme.sh/${tlsDomain}_ecc" && -f "$HOME/.acme.sh/${tlsDomain}_ecc/${tlsDomain}.key" && -f "$HOME/.acme.sh/${tlsDomain}_ecc/${tlsDomain}.cer" ]] || [[ "${installedDNSAPIStatus}" == "true" ]]; then
         echoContent green " ---> Install TLS certificate, need to rely on port 80"
         # checkTLStatus
         renewalTLS
 
-        if [[ -z $(find /etc/v2a/tls/ -name "${tlsDomain}.crt") ]] || [[ -z $(find /etc/v2a/tls/ -name "${tlsDomain}.key") ]] || [[ -z $(cat "/etc/v2a/tls/${tlsDomain}.crt") ]]; then
+        if [[ -z $(find /etc/v2ray-agent/tls/ -name "${tlsDomain}.crt") ]] || [[ -z $(find /etc/v2ray-agent/tls/ -name "${tlsDomain}.key") ]] || [[ -z $(cat "/etc/v2ray-agent/tls/${tlsDomain}.crt") ]]; then
             if [[ "${installedDNSAPIStatus}" == "true" ]]; then
-                sudo "$HOME/.acme.sh/acme.sh" --installcert -d "*.${dnsTLSDomain}" --fullchainpath "/etc/v2a/tls/${tlsDomain}.crt" --keypath "/etc/v2a/tls/${tlsDomain}.key" --ecc >/dev/null
+                sudo "$HOME/.acme.sh/acme.sh" --installcert -d "*.${dnsTLSDomain}" --fullchainpath "/etc/v2ray-agent/tls/${tlsDomain}.crt" --keypath "/etc/v2ray-agent/tls/${tlsDomain}.key" --ecc >/dev/null
             else
-                sudo "$HOME/.acme.sh/acme.sh" --installcert -d "${tlsDomain}" --fullchainpath "/etc/v2a/tls/${tlsDomain}.crt" --keypath "/etc/v2a/tls/${tlsDomain}.key" --ecc >/dev/null
+                sudo "$HOME/.acme.sh/acme.sh" --installcert -d "${tlsDomain}" --fullchainpath "/etc/v2ray-agent/tls/${tlsDomain}.crt" --keypath "/etc/v2ray-agent/tls/${tlsDomain}.key" --ecc >/dev/null
             fi
 
         else
@@ -2341,7 +2349,7 @@ installTLS() {
             echoContent yellow " ---> Detection of abnormal return value, it is recommended to manually uninstall nginx and re-execute the script"
             read -r -p "Reinstall? [y/n]:" reInstallStatus
                     if [[ "${reInstallStatus}" == "y" ]]; then
-                        rm -rf /etc/v2a/tls/*
+                        rm -rf /etc/v2ray-agent/tls/*
                         installTLS "$1"
                     fi
                 fi
@@ -2361,13 +2369,13 @@ installTLS() {
         selectAcmeInstallSSL
 
         if [[ "${installedDNSAPIStatus}" == "true" ]]; then
-            sudo "$HOME/.acme.sh/acme.sh" --installcert -d "*.${dnsTLSDomain}" --fullchainpath "/etc/v2a/tls/${tlsDomain}.crt" --keypath "/etc/v2a/tls/${tlsDomain}.key" --ecc >/dev/null
+            sudo "$HOME/.acme.sh/acme.sh" --installcert -d "*.${dnsTLSDomain}" --fullchainpath "/etc/v2ray-agent/tls/${tlsDomain}.crt" --keypath "/etc/v2ray-agent/tls/${tlsDomain}.key" --ecc >/dev/null
         else
-            sudo "$HOME/.acme.sh/acme.sh" --installcert -d "${tlsDomain}" --fullchainpath "/etc/v2a/tls/${tlsDomain}.crt" --keypath "/etc/v2a/tls/${tlsDomain}.key" --ecc >/dev/null
+            sudo "$HOME/.acme.sh/acme.sh" --installcert -d "${tlsDomain}" --fullchainpath "/etc/v2ray-agent/tls/${tlsDomain}.crt" --keypath "/etc/v2ray-agent/tls/${tlsDomain}.key" --ecc >/dev/null
         fi
 
-        if [[ ! -f "/etc/v2a/tls/${tlsDomain}.crt" || ! -f "/etc/v2a/tls/${tlsDomain}.key" ]] || [[ -z $(cat "/etc/v2a/tls/${tlsDomain}.key") || -z $(cat "/etc/v2a/tls/${tlsDomain}.crt") ]]; then
-            tail -n 10 /etc/v2a/tls/acme.log
+        if [[ ! -f "/etc/v2ray-agent/tls/${tlsDomain}.crt" || ! -f "/etc/v2ray-agent/tls/${tlsDomain}.key" ]] || [[ -z $(cat "/etc/v2ray-agent/tls/${tlsDomain}.key") || -z $(cat "/etc/v2ray-agent/tls/${tlsDomain}.crt") ]]; then
+            tail -n 10 /etc/v2ray-agent/tls/acme.log
             if [[ ${installTLSCount} == "1" ]]; then
                 echoContent red " ---> TLS installation failed, please check the acme log"
                 exit 0
@@ -2376,7 +2384,7 @@ installTLS() {
             installTLSCount=1
             echo
 
-            if tail -n 10 /etc/v2a/tls/acme.log | grep -q "Could not validate email address as valid"; then
+            if tail -n 10 /etc/v2ray-agent/tls/acme.log | grep -q "Could not validate email address as valid"; then
                 echoContent red " ---> The email cannot pass SSL vendor verification, please re-enter"
                 echo
                 customSSLEmail "validate email"
@@ -2501,9 +2509,9 @@ nginxBlog() {
 # Modify http_port_t port
 updateSELinuxHTTPPortT() {
 
-    $(find /usr/bin /usr/sbin | grep -w journalctl) -xe >/etc/v2a/nginx_error.log 2>&1
+    $(find /usr/bin /usr/sbin | grep -w journalctl) -xe >/etc/v2ray-agent/nginx_error.log 2>&1
 
-    if find /usr/bin /usr/sbin | grep -q -w semanage && find /usr/bin /usr/sbin | grep -q -w getenforce && grep -E "31300|31302" </etc/v2a/nginx_error.log | grep -q "Permission denied"; then
+    if find /usr/bin /usr/sbin | grep -q -w semanage && find /usr/bin /usr/sbin | grep -q -w getenforce && grep -E "31300|31302" </etc/v2ray-agent/nginx_error.log | grep -q "Permission denied"; then
         echoContent red " ---> Check if the SELinux port is open"
         if ! $(find /usr/bin /usr/sbin | grep -w semanage) port -l | grep http_port | grep -q 31300; then
             $(find /usr/bin /usr/sbin | grep -w semanage) port -a -t http_port_t -p tcp 31300
@@ -2526,9 +2534,9 @@ handleNginx() {
 
     if ! echo "${selectCustomInstallType}" | grep -qwE ",7,|,8,|,7,8," && [[ -z $(pgrep -f "nginx") ]] && [[ "$1" == "start" ]]; then
         if [[ "${release}" == "alpine" ]]; then
-            rc-service nginx start 2>/etc/v2a/nginx_error.log
+            rc-service nginx start 2>/etc/v2ray-agent/nginx_error.log
         else
-            systemctl start nginx 2>/etc/v2a/nginx_error.log
+            systemctl start nginx 2>/etc/v2ray-agent/nginx_error.log
         fi
 
         sleep 0.5
@@ -2537,7 +2545,7 @@ handleNginx() {
             echoContent red " ---> Nginx failed to start"
             echoContent red " ---> Please try to install nginx manually and execute the script again"
             nginx
-            if grep -q "journalctl -xe" </etc/v2a/nginx_error.log; then
+            if grep -q "journalctl -xe" </etc/v2ray-agent/nginx_error.log; then
                 updateSELinuxHTTPPortT
             fi
         else
@@ -2564,12 +2572,12 @@ handleNginx() {
 installCronTLS() {
     if [[ -z "${btDomain}" ]]; then
         echoContent skyBlue "\nProgress$1/${totalProgress}: Add scheduled maintenance certificate"
-        crontab -l >/etc/v2a/backup_crontab.cron
+        crontab -l >/etc/v2ray-agent/backup_crontab.cron
         local historyCrontab
-        historyCrontab=$(sed '/v2a/d;/acme.sh/d' /etc/v2a/backup_crontab.cron)
-        echo "${historyCrontab}" >/etc/v2a/backup_crontab.cron
-        echo "30 1 * * * /bin/bash /etc/v2a/install.sh RenewTLS >> /etc/v2a/crontab_tls.log 2>&1" >>/etc/v2a/backup_crontab.cron
-        crontab /etc/v2a/backup_crontab.cron
+        historyCrontab=$(sed '/v2a/d;/acme.sh/d' /etc/v2ray-agent/backup_crontab.cron)
+        echo "${historyCrontab}" >/etc/v2ray-agent/backup_crontab.cron
+        echo "30 1 * * * /bin/bash /etc/v2ray-agent/install.sh RenewTLS >> /etc/v2ray-agent/crontab_tls.log 2>&1" >>/etc/v2ray-agent/backup_crontab.cron
+        crontab /etc/v2ray-agent/backup_crontab.cron
         echoContent green "\n ---> Adding scheduled update geo file successfully"
     fi
 }
@@ -2581,9 +2589,9 @@ installCronUpdateGeo() {
             exit 0
         fi
         echoContent skyBlue "\nProgress 1/1: Add regularly updated geo files"
-        crontab -l >/etc/v2a/backup_crontab.cron
-        echo "35 1 * * * /bin/bash /etc/v2a/install.sh UpdateGeo >> /etc/v2a/crontab_tls.log 2>&1" >>/etc/v2a/backup_crontab.cron
-        crontab /etc/v2a/backup_crontab.cron
+        crontab -l >/etc/v2ray-agent/backup_crontab.cron
+        echo "35 1 * * * /bin/bash /etc/v2ray-agent/install.sh UpdateGeo >> /etc/v2ray-agent/crontab_tls.log 2>&1" >>/etc/v2ray-agent/backup_crontab.cron
+        crontab /etc/v2ray-agent/backup_crontab.cron
             echoContent green " ---> The certificate is valid"
     fi
 }
@@ -2600,8 +2608,8 @@ renewalTLS() {
         domain=${tlsDomain}
     fi
 
-    if [[ -f "/etc/v2a/tls/ssl_type" ]]; then
-        if grep -q "buypass" <"/etc/v2a/tls/ssl_type"; then
+    if [[ -f "/etc/v2ray-agent/tls/ssl_type" ]]; then
+        if grep -q "buypass" <"/etc/v2ray-agent/tls/ssl_type"; then
             sslRenewalDays=180
         fi
     fi
@@ -2642,13 +2650,13 @@ renewalTLS() {
             fi
 
             sudo "$HOME/.acme.sh/acme.sh" --cron --home "$HOME/.acme.sh"
-            sudo "$HOME/.acme.sh/acme.sh" --installcert -d "${domain}" --fullchainpath /etc/v2a/tls/"${domain}.crt" --keypath /etc/v2a/tls/"${domain}.key" --ecc
+            sudo "$HOME/.acme.sh/acme.sh" --installcert -d "${domain}" --fullchainpath /etc/v2ray-agent/tls/"${domain}.crt" --keypath /etc/v2ray-agent/tls/"${domain}.key" --ecc
             reloadCore
             handleNginx start
         else
         echoContent green " ---> v2ray-core version:${version}"
         fi
-    elif [[ -f "/etc/v2a/tls/${tlsDomain}.crt" && -f "/etc/v2a/tls/${tlsDomain}.key" && -n $(cat "/etc/v2a/tls/${tlsDomain}.crt") ]]; then
+    elif [[ -f "/etc/v2ray-agent/tls/${tlsDomain}.crt" && -f "/etc/v2ray-agent/tls/${tlsDomain}.key" && -n $(cat "/etc/v2ray-agent/tls/${tlsDomain}.crt") ]]; then
         echoContent yellow "3.buypass[Does not support DNS application]"
     else
         echoContent red " ---> not installed"
@@ -2659,7 +2667,7 @@ installSingBox() {
     readInstallType
     echoContent skyBlue "\nProgress  $1/${totalProgress} : Install sing-box"
 
-    if [[ ! -f "/etc/v2a/sing-box/sing-box" ]]; then
+    if [[ ! -f "/etc/v2ray-agent/sing-box/sing-box" ]]; then
 
         if [[ "${prereleaseStatus}" == "true" ]]; then
             version=$(curl -s --max-time 15 "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
@@ -2674,11 +2682,11 @@ installSingBox() {
 
         echoContent green " ---> Latest version:${version}"
 
-        if ! downloadFile /etc/v2a/sing-box/ "https://github.com/SagerNet/sing-box/releases/download/${version}/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"; then
-            rm -f "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"
+        if ! downloadFile /etc/v2ray-agent/sing-box/ "https://github.com/SagerNet/sing-box/releases/download/${version}/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"; then
+            rm -f "/etc/v2ray-agent/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz"
         fi
 
-        if [[ ! -f "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" ]]; then
+        if [[ ! -f "/etc/v2ray-agent/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" ]]; then
             read -r -p "Core download failed, retry installation? [y/n]" downloadStatus
             if [[ "${downloadStatus}" == "y" ]]; then
                 installSingBox "$1" "$2"
@@ -2687,17 +2695,17 @@ installSingBox() {
                 return 1
             fi
         else
-            if ! tar zxvf "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" -C "/etc/v2a/sing-box/" >/dev/null 2>&1; then
+            if ! tar zxvf "/etc/v2ray-agent/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" -C "/etc/v2ray-agent/sing-box/" >/dev/null 2>&1; then
                 echoContent red "\n ---> Failed to unpack the sing-box archive, cancel installation\n"
-                rm -rf "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}"
+                rm -rf "/etc/v2ray-agent/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}.tar.gz" "/etc/v2ray-agent/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}"
                 return 1
             fi
-            mv "/etc/v2a/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}/sing-box" /etc/v2a/sing-box/sing-box
-            rm -rf /etc/v2a/sing-box/sing-box-*
-            chmod 655 /etc/v2a/sing-box/sing-box
+            mv "/etc/v2ray-agent/sing-box/sing-box-${version/v/}${singBoxCoreCPUVendor}/sing-box" /etc/v2ray-agent/sing-box/sing-box
+            rm -rf /etc/v2ray-agent/sing-box/sing-box-*
+            chmod 655 /etc/v2ray-agent/sing-box/sing-box
         fi
     else
-        echoContent green " ---> Current version:v$(/etc/v2a/sing-box/sing-box version | grep "sing-box version" | awk '{print $3}')"
+        echoContent green " ---> Current version:v$(/etc/v2ray-agent/sing-box/sing-box version | grep "sing-box version" | awk '{print $3}')"
 
         if [[ "${prereleaseStatus}" == "true" ]]; then
             version=$(curl -s --max-time 15 "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
@@ -2716,12 +2724,12 @@ installSingBox() {
             read -r -p "Would you like to update or upgrade? [y/n]:" reInstallSingBoxStatus
             if [[ "${reInstallSingBoxStatus}" == "y" ]]; then
                 local singBoxBackupFile=
-                singBoxBackupFile="/etc/v2a/sing-box/sing-box.bak.$(date +%s)"
-                cp /etc/v2a/sing-box/sing-box "${singBoxBackupFile}" || return 1
-                rm -f /etc/v2a/sing-box/sing-box
+                singBoxBackupFile="/etc/v2ray-agent/sing-box/sing-box.bak.$(date +%s)"
+                cp /etc/v2ray-agent/sing-box/sing-box "${singBoxBackupFile}" || return 1
+                rm -f /etc/v2ray-agent/sing-box/sing-box
                 if ! installSingBox "$1" "$2"; then
                     echoContent red "\n ---> sing-box update failed, restoring previous version\n"
-                    mv "${singBoxBackupFile}" /etc/v2a/sing-box/sing-box
+                    mv "${singBoxBackupFile}" /etc/v2ray-agent/sing-box/sing-box
                     return 1
                 fi
                 return 0
@@ -2788,7 +2796,7 @@ verifyDgstFile() {
 downloadXrayCore() {
     local version=$1
     local archive="${xrayCoreCPUVendor}.zip"
-    local dir="/etc/v2a/xray"
+    local dir="/etc/v2ray-agent/xray"
     if ! downloadFile "${dir}" "https://github.com/XTLS/Xray-core/releases/download/${version}/${archive}"; then
         rm -f "${dir}/${archive}"
         return 1
@@ -2837,7 +2845,7 @@ installXray() {
 
     echoContent skyBlue "\nProgress  $1/${totalProgress} : Install Xray"
 
-    if [[ ! -f "/etc/v2a/xray/xray" ]]; then
+    if [[ ! -f "/etc/v2ray-agent/xray/xray" ]]; then
         if [[ "${prereleaseStatus}" == "true" ]]; then
             version=$(curl -s --max-time 15 "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
         else
@@ -2851,10 +2859,10 @@ installXray() {
 
         echoContent green " ---> Xray-core version:${version}"
         if ! downloadXrayCore "${version}"; then
-            rm -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+            rm -f "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip"
         fi
 
-        if [[ ! -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" ]]; then
+        if [[ ! -f "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip" ]]; then
             read -r -p "Core download failed, retry installation? [y/n]" downloadStatus
             if [[ "${downloadStatus}" == "y" ]]; then
                 installXray "$1" "$2"
@@ -2863,14 +2871,14 @@ installXray() {
                 return 1
             fi
         else
-            if ! unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null; then
+            if ! unzip -o "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2ray-agent/xray >/dev/null; then
                 echoContent red "\n ---> Failed to unpack the Xray archive, cancel installation\n"
-                rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+                rm -rf "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip"
                 return 1
             fi
-            rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+            rm -rf "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip"
 
-            if [[ ! -f "/etc/v2a/xray/xray" ]]; then
+            if [[ ! -f "/etc/v2ray-agent/xray/xray" ]]; then
                 echoContent red "\n ---> Xray executable was not found after unpacking, cancel installation\n"
                 return 1
             fi
@@ -2882,26 +2890,26 @@ installXray() {
             fi
             echoContent skyBlue "------------------------Version-------------------------------"
             echo "version:${version}"
-            rm /etc/v2a/xray/geo* >/dev/null 2>&1
+            rm /etc/v2ray-agent/xray/geo* >/dev/null 2>&1
 
-            if ! downloadGeoData "${version}" /etc/v2a/xray; then
+            if ! downloadGeoData "${version}" /etc/v2ray-agent/xray; then
                 return 1
             fi
 
-            chmod 655 /etc/v2a/xray/xray
+            chmod 655 /etc/v2ray-agent/xray/xray
         fi
     else
         if [[ -z "${lastInstallationConfig}" ]]; then
-            echoContent green " ---> Xray-core version:$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+            echoContent green " ---> Xray-core version:$(/etc/v2ray-agent/xray/xray --version | awk '{print $2}' | head -1)"
             read -r -p "Would you like to update or upgrade? [y/n]:" reInstallXrayStatus
             if [[ "${reInstallXrayStatus}" == "y" ]]; then
                 local xrayBackupFile=
-                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
-                cp /etc/v2a/xray/xray "${xrayBackupFile}" || return 1
-                rm -f /etc/v2a/xray/xray
+                xrayBackupFile="/etc/v2ray-agent/xray/xray.bak.$(date +%s)"
+                cp /etc/v2ray-agent/xray/xray "${xrayBackupFile}" || return 1
+                rm -f /etc/v2ray-agent/xray/xray
                 if ! installXray "$1" "$2"; then
                     echoContent red "\n ---> Xray update failed, restoring previous version\n"
-                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    mv "${xrayBackupFile}" /etc/v2ray-agent/xray/xray
                     return 1
                 fi
                 return 0
@@ -3011,47 +3019,47 @@ updateXray() {
         echoContent green " ---> Xray-core version:${version}"
 
         if ! downloadXrayCore "${version}"; then
-            rm -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+            rm -f "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip"
         fi
 
-        if [[ ! -f "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" ]]; then
+        if [[ ! -f "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip" ]]; then
             echoContent red "\n ---> Xray core download or verification failed, update cancelled\n"
             return 1
         fi
 
         # Backup is only needed when the old binary still exists; the update flow backs up and removes it before the recursive call
-        if [[ -f "/etc/v2a/xray/xray" ]]; then
-            xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
-            if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+        if [[ -f "/etc/v2ray-agent/xray/xray" ]]; then
+            xrayBackupFile="/etc/v2ray-agent/xray/xray.bak.$(date +%s)"
+            if ! cp /etc/v2ray-agent/xray/xray "${xrayBackupFile}"; then
                 echoContent red "\n ---> Failed to backup Xray-core, update cancelled\n"
-                rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+                rm -rf "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip"
                 return 1
             fi
         fi
 
-        if ! unzip -o "/etc/v2a/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2a/xray >/dev/null; then
+        if ! unzip -o "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip" -d /etc/v2ray-agent/xray >/dev/null; then
             echoContent red "\n ---> Failed to unpack the Xray archive, update cancelled\n"
-            rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+            rm -rf "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip"
             if [[ -n "${xrayBackupFile}" && -f "${xrayBackupFile}" ]]; then
-                mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                mv "${xrayBackupFile}" /etc/v2ray-agent/xray/xray
             fi
             return 1
         fi
-        rm -rf "/etc/v2a/xray/${xrayCoreCPUVendor}.zip"
+        rm -rf "/etc/v2ray-agent/xray/${xrayCoreCPUVendor}.zip"
 
-        if [[ ! -f "/etc/v2a/xray/xray" ]]; then
+        if [[ ! -f "/etc/v2ray-agent/xray/xray" ]]; then
             echoContent red "\n ---> Xray executable was not found after unpacking, update cancelled\n"
             if [[ -n "${xrayBackupFile}" && -f "${xrayBackupFile}" ]]; then
-                mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                mv "${xrayBackupFile}" /etc/v2ray-agent/xray/xray
             fi
             return 1
         fi
 
-        chmod 655 /etc/v2a/xray/xray
+        chmod 655 /etc/v2ray-agent/xray/xray
         handleXray stop
         handleXray start
     else
-        currentVersion="v$(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+        currentVersion="v$(/etc/v2ray-agent/xray/xray --version | awk '{print $2}' | head -1)"
         echoContent green " ---> Current Xray-core version:${currentVersion}"
 
         # When rolling back, the version number is provided by the argument and should not rely on the network
@@ -3079,16 +3087,16 @@ updateXray() {
                 echoContent green " ---> Current Xray-core version:${currentVersion}"
 
                 handleXray stop
-                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
-                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                xrayBackupFile="/etc/v2ray-agent/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2ray-agent/xray/xray "${xrayBackupFile}"; then
                     echoContent red "\n ---> Failed to backup old Xray version, rollback cancelled\n"
                     handleXray start
                     return 1
                 fi
-                rm -f /etc/v2a/xray/xray
+                rm -f /etc/v2ray-agent/xray/xray
                 if ! updateXray "${version}"; then
                     echoContent red "\n ---> Xray rollback failed, restoring previous version\n"
-                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    mv "${xrayBackupFile}" /etc/v2ray-agent/xray/xray
                     handleXray start
                     return 1
                 fi
@@ -3099,16 +3107,16 @@ updateXray() {
             read -r -p "The current version is the same as the latest version. Do you want to reinstall? [y/n]:" reInstallXrayStatus
             if [[ "${reInstallXrayStatus}" == "y" ]]; then
                 handleXray stop
-                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
-                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                xrayBackupFile="/etc/v2ray-agent/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2ray-agent/xray/xray "${xrayBackupFile}"; then
                     echoContent red "\n ---> Failed to backup old Xray version, reinstall cancelled\n"
                     handleXray start
                     return 1
                 fi
-                rm -f /etc/v2a/xray/xray
+                rm -f /etc/v2ray-agent/xray/xray
                 if ! updateXray; then
                     echoContent red "\n ---> Xray reinstall failed, restoring previous version\n"
-                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    mv "${xrayBackupFile}" /etc/v2ray-agent/xray/xray
                     handleXray start
                     return 1
                 fi
@@ -3119,16 +3127,16 @@ updateXray() {
             read -r -p "The latest version is: ${version}, do you want to update? [y/n]:" installXrayStatus
             if [[ "${installXrayStatus}" == "y" ]]; then
                 handleXray stop
-                xrayBackupFile="/etc/v2a/xray/xray.bak.$(date +%s)"
-                if ! cp /etc/v2a/xray/xray "${xrayBackupFile}"; then
+                xrayBackupFile="/etc/v2ray-agent/xray/xray.bak.$(date +%s)"
+                if ! cp /etc/v2ray-agent/xray/xray "${xrayBackupFile}"; then
                     echoContent red "\n ---> Failed to backup old Xray version, update cancelled\n"
                     handleXray start
                     return 1
                 fi
-                rm -f /etc/v2a/xray/xray
+                rm -f /etc/v2ray-agent/xray/xray
                 if ! updateXray; then
                     echoContent red "\n ---> Xray update failed, restoring previous version\n"
-                    mv "${xrayBackupFile}" /etc/v2a/xray/xray
+                    mv "${xrayBackupFile}" /etc/v2ray-agent/xray/xray
                     handleXray start
                     return 1
                 fi
@@ -3145,7 +3153,7 @@ checkGFWStatue() {
     readInstallType
     echoContent skyBlue "\nProgress$1/${totalProgress}: Installing Hysteria"
     if [[ "${coreInstallType}" == "1" ]] && [[ -n $(pgrep -f "xray/xray") ]]; then
-                    echoContent green " ---> Current Xray-core version: $(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+                    echoContent green " ---> Current Xray-core version: $(/etc/v2ray-agent/xray/xray --version | awk '{print $2}' | head -1)"
     elif [[ "${coreInstallType}" == "2" ]] && [[ -n $(pgrep -f "sing-box/sing-box") ]]; then
                 echoContent green " ---> Abandon the rollback version"
     else
@@ -3161,8 +3169,8 @@ installAlpineStartup() {
 #!/sbin/openrc-run
 
 description="sing-box service"
-command="/etc/v2a/sing-box/sing-box"
-command_args="run -c /etc/v2a/sing-box/conf/config.json"
+command="/etc/v2ray-agent/sing-box/sing-box"
+command_args="run -c /etc/v2ray-agent/sing-box/conf/config.json"
 command_background=true
 pidfile="/var/run/sing-box.pid"
 EOF
@@ -3171,8 +3179,8 @@ EOF
 #!/sbin/openrc-run
 
 description="xray service"
-command="/etc/v2a/xray/xray"
-command_args="run -confdir /etc/v2a/xray/conf"
+command="/etc/v2ray-agent/xray/xray"
+command_args="run -confdir /etc/v2ray-agent/xray/conf"
 command_background=true
 pidfile="/var/run/xray.pid"
 EOF
@@ -3183,7 +3191,7 @@ EOF
 
 installSingBoxService() {
     echoContent skyBlue "\nProgress$1/${totalProgress}: Install Tuic"
-    execStart='/etc/v2a/sing-box/sing-box run -c /etc/v2a/sing-box/conf/config.json'
+    execStart='/etc/v2ray-agent/sing-box/sing-box run -c /etc/v2ray-agent/sing-box/conf/config.json'
 
     if [[ -n $(find /bin /usr/bin -name "systemctl") && "${release}" != "alpine" ]]; then
         rm -rf /etc/systemd/system/sing-box.service
@@ -3221,7 +3229,7 @@ EOF
 # Xray starts automatically after booting
 installXrayService() {
     echoContent skyBlue "\nProgress$1/${totalProgress}: Install Xray"
-    execStart='/etc/v2a/xray/xray run -confdir /etc/v2a/xray/conf'
+    execStart='/etc/v2ray-agent/xray/xray run -confdir /etc/v2ray-agent/xray/conf'
     if [[ -n $(find /bin /usr/bin -name "systemctl") ]]; then
         rm -rf /etc/systemd/system/xray.service
         touch /etc/systemd/system/xray.service
@@ -3271,7 +3279,7 @@ handleHysteria() {
         fi
     elif [[ "$1" == "stop" ]]; then
         if [[ -z $(pgrep -f "hysteria/hysteria") ]]; then
-        echoContent green " ---> Current Xray-core version: $(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+        echoContent green " ---> Current Xray-core version: $(/etc/v2ray-agent/xray/xray --version | awk '{print $2}' | head -1)"
         else
         echoContent red " ---> The installation directory is not detected, please execute the script to install the content"
     echoContent red "\n================================================ ================="
@@ -3300,7 +3308,7 @@ handleSingBox() {
 
     if [[ "$1" == "start" ]]; then
         if [[ -n $(pgrep -f "sing-box") ]]; then
-                echoContent green " ---> Current Xray-core version: $(/etc/v2a/xray/xray --version | awk '{print $2}' | head -1)"
+                echoContent green " ---> Current Xray-core version: $(/etc/v2ray-agent/xray/xray --version | awk '{print $2}' | head -1)"
         else
     echoContent red "================================================== ==============="
     echoContent yellow "2.Fallback v2ray-core"
@@ -3344,7 +3352,7 @@ handleXray() {
                 echoContent green " ---> Give up and reinstall"
         else
             echoContent red "V2Ray failed to start"
-            echoContent red "Please manually execute [/etc/v2a/v2ray/v2ray -confdir /etc/v2a/v2ray/conf] and check the error log"
+            echoContent red "Please manually execute [/etc/v2ray-agent/v2ray/v2ray -confdir /etc/v2ray-agent/v2ray/conf] and check the error log"
             [[ "${2:-}" == "transaction" ]] && return 1
             exit 0
         fi
@@ -3566,7 +3574,7 @@ initHysteriaPort() {
             echoContent red "Hysteria startup failed"
         initHysteriaPort "$2"
     elif ((hysteriaPort < 1 || hysteriaPort > 65535)); then
-            echoContent red "Please manually execute [/etc/v2a/hysteria/hysteria --log-level debug -c /etc/v2a/hysteria/conf/config.json server] to view the error log"
+            echoContent red "Please manually execute [/etc/v2ray-agent/hysteria/hysteria --log-level debug -c /etc/v2ray-agent/hysteria/conf/config.json server] to view the error log"
         initHysteriaPort "$2"
     fi
     allowPort "${hysteriaPort}"
@@ -3639,7 +3647,7 @@ addPortHopping() {
         portEnd=$(echo "${portHoppingRange}" | awk -F '-' '{print $2}')
 
         if [[ -z "${portStart}" || -z "${portEnd}" ]]; then
-            echoContent red "Please manually execute [/etc/v2a/tuic/tuic -c /etc/v2a/tuic/conf/config.json] and check the error log"
+            echoContent red "Please manually execute [/etc/v2ray-agent/tuic/tuic -c /etc/v2ray-agent/tuic/conf/config.json] and check the error log"
             addPortHopping "${type}" "${targetPort}"
         elif ((portStart < 30000 || portStart > 40000 || portEnd < 30000 || portEnd > 40000 || portEnd < portStart)); then
             echoContent red "Tuic failed to close"
@@ -3708,8 +3716,8 @@ deletePortHoppingRules() {
         done
         sudo firewall-cmd --reload
     else
-        iptables -t nat -L PREROUTING --line-numbers | grep "mcogh_${type}_portHopping" | awk '{print $1}' | while read -r line; do
-            iptables -t nat -D PREROUTING 1
+        iptables -t nat -L PREROUTING --line-numbers | grep "mcogh_${type}_portHopping" | awk '{print $1}' | sort -rn | while read -r line; do
+            iptables -t nat -D PREROUTING "${line}"
             sudo netfilter-persistent save
         done
     fi
@@ -3719,7 +3727,7 @@ portHoppingMenu() {
     local type=$1
     # Determine whether iptables exists
     if ! find /usr/bin /usr/sbin | grep -q -w iptables; then
-            echoContent red "Please manually execute the following command [/etc/v2a/xray/xray -confdir /etc/v2a/xray/conf] and feedback the error log"
+            echoContent red "Please manually execute the following command [/etc/v2ray-agent/xray/xray -confdir /etc/v2ray-agent/xray/conf] and feedback the error log"
         exit 0
     fi
 
@@ -3838,12 +3846,12 @@ initTuicProtocol() {
 #
 #    initTuicPort
 #    initTuicProtocol
-#    cat <<EOF >/etc/v2a/tuic/conf/config.json
+#    cat <<EOF >/etc/v2ray-agent/tuic/conf/config.json
 #{
 #    "server": "[::]:${tuicPort}",
 #    "users": $(initXrayClients 9),
-#    "certificate": "/etc/v2a/tls/${currentHost}.crt",
-#    "private_key": "/etc/v2a/tls/${currentHost}.key",
+#    "certificate": "/etc/v2ray-agent/tls/${currentHost}.crt",
+#    "private_key": "/etc/v2ray-agent/tls/${currentHost}.key",
 #    "congestion_control":"${tuicAlgorithm}",
 #    "alpn": ["h3"],
 #    "log_level": "warn"
@@ -3980,7 +3988,7 @@ addXrayOutbound() {
     fi
 
     if [[ -n "${domainStrategy}" ]]; then
-        cat <<EOF >"/etc/v2a/xray/conf/${tag}.json"
+        cat <<EOF >"/etc/v2ray-agent/xray/conf/${tag}.json"
 {
     "outbounds":[
         {
@@ -3996,7 +4004,7 @@ EOF
     fi
     # direct
     if echo "${tag}" | grep -q "direct"; then
-        cat <<EOF >"/etc/v2a/xray/conf/${tag}.json"
+        cat <<EOF >"/etc/v2ray-agent/xray/conf/${tag}.json"
 {
     "outbounds":[
         {
@@ -4012,7 +4020,7 @@ EOF
     fi
     # blackhole
     if echo "${tag}" | grep -q "blackhole"; then
-        cat <<EOF >"/etc/v2a/xray/conf/${tag}.json"
+        cat <<EOF >"/etc/v2ray-agent/xray/conf/${tag}.json"
 {
     "outbounds":[
         {
@@ -4025,7 +4033,7 @@ EOF
     fi
     # socks5 outbound
     if echo "${tag}" | grep -q "socks5"; then
-        cat <<EOF >"/etc/v2a/xray/conf/${tag}.json"
+        cat <<EOF >"/etc/v2ray-agent/xray/conf/${tag}.json"
 {
   "outbounds": [
     {
@@ -4051,7 +4059,7 @@ EOF
 EOF
     fi
     if echo "${tag}" | grep -q "wireguard_out_IPv4"; then
-        cat <<EOF >"/etc/v2a/xray/conf/${tag}.json"
+        cat <<EOF >"/etc/v2ray-agent/xray/conf/${tag}.json"
 {
   "outbounds": [
     {
@@ -4081,7 +4089,7 @@ EOF
 EOF
     fi
     if echo "${tag}" | grep -q "wireguard_out_IPv6"; then
-        cat <<EOF >"/etc/v2a/xray/conf/${tag}.json"
+        cat <<EOF >"/etc/v2ray-agent/xray/conf/${tag}.json"
 {
   "outbounds": [
     {
@@ -4111,7 +4119,7 @@ EOF
 EOF
     fi
     if echo "${tag}" | grep -q "vmess-out"; then
-        cat <<EOF >"/etc/v2a/xray/conf/${tag}.json"
+        cat <<EOF >"/etc/v2ray-agent/xray/conf/${tag}.json"
 {
   "outbounds": [
     {
@@ -4153,8 +4161,8 @@ EOF
 
 removeXrayOutbound() {
     local tag=$1
-    if [[ -f "/etc/v2a/xray/conf/${tag}.json" ]]; then
-        rm "/etc/v2a/xray/conf/${tag}.json" >/dev/null 2>&1
+    if [[ -f "/etc/v2ray-agent/xray/conf/${tag}.json" ]]; then
+        rm "/etc/v2ray-agent/xray/conf/${tag}.json" >/dev/null 2>&1
     fi
 }
 removeSingBoxConfig() {
@@ -4201,7 +4209,7 @@ initSingBoxHysteria2Config() {
     initHysteriaPort
     initHysteria2Network
 
-    cat <<EOF >/etc/v2a/sing-box/conf/config/hysteria2.json
+    cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/hysteria2.json
 {
     "inbounds": [
         {
@@ -4217,8 +4225,8 @@ initSingBoxHysteria2Config() {
                 "alpn": [
                     "h3"
                 ],
-                "certificate_path": "/etc/v2a/tls/${currentHost}.crt",
-                "key_path": "/etc/v2a/tls/${currentHost}.key"
+                "certificate_path": "/etc/v2ray-agent/tls/${currentHost}.crt",
+                "key_path": "/etc/v2ray-agent/tls/${currentHost}.key"
             }
         }
     ]
@@ -4258,7 +4266,7 @@ singBoxHysteria2Install() {
 
 # Initialize sing-box local DNS resolver
 initSingBoxLocalDNSConfig() {
-    local singBoxConfigDir="/etc/v2a/sing-box/conf/config"
+    local singBoxConfigDir="/etc/v2ray-agent/sing-box/conf/config"
     local singBoxDNSConfigPath="${singBoxConfigDir}/dns.json"
 
     mkdir -p "${singBoxConfigDir}"
@@ -4292,7 +4300,7 @@ EOF
 
 # Migrate outbound fragments generated by earlier script versions
 migrateSingBoxLegacyOutboundConfig() {
-    local singBoxConfigDir=${1:-/etc/v2a/sing-box/conf/config}
+    local singBoxConfigDir=${1:-/etc/v2ray-agent/sing-box/conf/config}
     local outboundTag=
     local outboundConfigPath=
 
@@ -4315,7 +4323,7 @@ migrateSingBoxLegacyOutboundConfig() {
 }
 
 initSingBoxHTTPClientConfig() {
-    local singBoxConfigDir="/etc/v2a/sing-box/conf/config"
+    local singBoxConfigDir="/etc/v2ray-agent/sing-box/conf/config"
 
     initSingBoxLocalDNSConfig
     migrateSingBoxLegacyOutboundConfig
@@ -4335,8 +4343,8 @@ EOF
 
 singBoxMergeConfig() {
     initSingBoxHTTPClientConfig
-    rm /etc/v2a/sing-box/conf/config.json >/dev/null 2>&1
-    /etc/v2a/sing-box/sing-box merge config.json -C /etc/v2a/sing-box/conf/config/ -D /etc/v2a/sing-box/conf/ >/dev/null 2>&1
+    rm /etc/v2ray-agent/sing-box/conf/config.json >/dev/null 2>&1
+    /etc/v2ray-agent/sing-box/sing-box merge config.json -C /etc/v2ray-agent/sing-box/conf/config/ -D /etc/v2ray-agent/sing-box/conf/ >/dev/null 2>&1
 }
 
 #initXrayFrontingConfig() {
@@ -4440,7 +4448,7 @@ initXrayConfig() {
         if [[ -n ${customUUID} ]]; then
             uuid=${customUUID}
         else
-            uuid=$(/etc/v2a/xray/xray uuid)
+            uuid=$(/etc/v2ray-agent/xray/xray uuid)
         fi
 
     echoContent yellow "2.faketcp"
@@ -4453,7 +4461,7 @@ initXrayConfig() {
     if [[ -z "${addClientsStatus}" && -z "${uuid}" ]]; then
         addClientsStatus=
     echoContent red "================================================== ==============="
-        uuid=$(/etc/v2a/xray/xray uuid)
+        uuid=$(/etc/v2ray-agent/xray/xray uuid)
     fi
 
     if [[ -n "${uuid}" ]]; then
@@ -4464,12 +4472,12 @@ initXrayConfig() {
 
     # log
     #log
-    if [[ ! -f "/etc/v2a/xray/conf/00_log.json" ]]; then
+    if [[ ! -f "/etc/v2ray-agent/xray/conf/00_log.json" ]]; then
 
-        cat <<EOF >/etc/v2a/xray/conf/00_log.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/00_log.json
 {
   "log": {
-    "error": "/etc/v2a/xray/error.log",
+    "error": "/etc/v2ray-agent/xray/error.log",
     "loglevel": "warning",
     "dnsLog": false
   }
@@ -4477,9 +4485,9 @@ initXrayConfig() {
 EOF
     fi
 
-    if [[ ! -f "/etc/v2a/xray/conf/12_policy.json" ]]; then
+    if [[ ! -f "/etc/v2ray-agent/xray/conf/12_policy.json" ]]; then
 
-        cat <<EOF >/etc/v2a/xray/conf/12_policy.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/12_policy.json
 {
   "policy": {
       "levels": {
@@ -4496,8 +4504,8 @@ EOF
     addXrayOutbound "z_direct_outbound"
     # dns
     # dns
-    if [[ ! -f "/etc/v2a/xray/conf/11_dns.json" ]]; then
-        cat <<EOF >/etc/v2a/xray/conf/11_dns.json
+    if [[ ! -f "/etc/v2ray-agent/xray/conf/11_dns.json" ]]; then
+        cat <<EOF >/etc/v2ray-agent/xray/conf/11_dns.json
 {
     "dns": {
         "servers": [
@@ -4508,7 +4516,7 @@ EOF
 EOF
     fi
     # routing
-    cat <<EOF >/etc/v2a/xray/conf/09_routing.json
+    cat <<EOF >/etc/v2ray-agent/xray/conf/09_routing.json
 {
   "routing": {
     "rules": [
@@ -4531,7 +4539,7 @@ EOF
     # trojan
     if echo "${selectCustomInstallType}" | grep -q ",4," || [[ "$1" == "all" ]]; then
         fallbacksList='{"dest":31296,"xver":1},{"alpn":"h2","dest":31302,"xver":1}'
-        cat <<EOF >/etc/v2a/xray/conf/04_trojan_TCP_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/04_trojan_TCP_inbounds.json
 {
 "inbounds":[
 	{
@@ -4560,13 +4568,13 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/xray/conf/04_trojan_TCP_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/xray/conf/04_trojan_TCP_inbounds.json >/dev/null 2>&1
     fi
 
     # VLESS_WS_TLS
     if echo "${selectCustomInstallType}" | grep -q ",1," || [[ "$1" == "all" ]]; then
         fallbacksList=${fallbacksList}',{"path":"/'${customPath}'ws","dest":31297,"xver":1}'
-        cat <<EOF >/etc/v2a/xray/conf/03_VLESS_WS_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/03_VLESS_WS_inbounds.json
 {
 "inbounds":[
     {
@@ -4591,7 +4599,7 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/xray/conf/03_VLESS_WS_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/xray/conf/03_VLESS_WS_inbounds.json >/dev/null 2>&1
     fi
     # VLESS_Reality_XHTTP_TLS
     if echo "${selectCustomInstallType}" | grep -q ",12," || [[ "$1" == "all" ]]; then
@@ -4599,7 +4607,7 @@ EOF
         initRealityClientServersName
         initRealityKey
         initRealityMldsa65
-        cat <<EOF >/etc/v2a/xray/conf/12_VLESS_XHTTP_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/12_VLESS_XHTTP_inbounds.json
 {
 "inbounds":[
     {
@@ -4643,7 +4651,7 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/xray/conf/12_VLESS_XHTTP_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/xray/conf/12_VLESS_XHTTP_inbounds.json >/dev/null 2>&1
     fi
 
     # VLESS XHTTP TLS (Xray only, without Nginx)
@@ -4653,12 +4661,12 @@ EOF
             echoContent red "XHTTP TLS internal port 45988 is already in use."
             return 1
         fi
-        if [[ -z "${domain}" || ! -f "/etc/v2a/tls/${domain}.crt" || ! -f "/etc/v2a/tls/${domain}.key" ]]; then
+        if [[ -z "${domain}" || ! -f "/etc/v2ray-agent/tls/${domain}.crt" || ! -f "/etc/v2ray-agent/tls/${domain}.key" ]]; then
             echoContent red "XHTTP TLS requires a domain and ${domain}.crt/${domain}.key."
             return 1
         fi
         local xhttpTLSClients xhttpTLSTmp xhttpTLSFile xhttpTLSBackup="" xhttpTLSConfigDir
-        xhttpTLSConfigDir="${configPath:-/etc/v2a/xray/conf/}"
+        xhttpTLSConfigDir="${configPath:-/etc/v2ray-agent/xray/conf/}"
         xhttpTLSFile="${xhttpTLSConfigDir}14_VLESS_XHTTP_TLS_inbounds.json"
         xhttpTLSTmp=$(mktemp "${xhttpTLSConfigDir}.14_VLESS_XHTTP_TLS.XXXXXX") || return 1
         xhttpTLSClients=$(initXrayClients 14) || { rm -f "${xhttpTLSTmp}"; return 1; }
@@ -4673,7 +4681,7 @@ EOF
             xhttpTLSHadPrevious=true
         fi
         mv -f "${xhttpTLSTmp}" "${xhttpTLSFile}" || { rm -f "${xhttpTLSTmp}" "${xhttpTLSBackup}"; return 1; }
-        if [[ ! -x "/etc/v2a/xray/xray" ]] || ! /etc/v2a/xray/xray run -test -confdir /etc/v2a/xray/conf >/dev/null 2>&1; then
+        if [[ ! -x "/etc/v2ray-agent/xray/xray" ]] || ! /etc/v2ray-agent/xray/xray run -test -confdir /etc/v2ray-agent/xray/conf >/dev/null 2>&1; then
             if [[ -n "${xhttpTLSBackup}" ]]; then
                 mv -f "${xhttpTLSBackup}" "${xhttpTLSFile}"
             else
@@ -4686,11 +4694,11 @@ EOF
         xhttpTLSDeploymentConfig="${xhttpTLSFile}"
         xhttpTLSDeploymentHadPrevious="${xhttpTLSHadPrevious}"
     elif [[ -z "$3" ]]; then
-        rm -f /etc/v2a/xray/conf/14_VLESS_XHTTP_TLS_inbounds.json >/dev/null 2>&1
+        rm -f /etc/v2ray-agent/xray/conf/14_VLESS_XHTTP_TLS_inbounds.json >/dev/null 2>&1
     fi
     if echo "${selectCustomInstallType}" | grep -q ",3," || [[ "$1" == "all" ]]; then
         fallbacksList=${fallbacksList}',{"path":"/'${customPath}'vws","dest":31299,"xver":1}'
-        cat <<EOF >/etc/v2a/xray/conf/05_VMess_WS_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/05_VMess_WS_inbounds.json
 {
     "inbounds":[
         {
@@ -4714,11 +4722,11 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/xray/conf/05_VMess_WS_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/xray/conf/05_VMess_WS_inbounds.json >/dev/null 2>&1
     fi
     # VLESS_gRPC
     #    if echo "${selectCustomInstallType}" | grep -q ",5," || [[ "$1" == "all" ]]; then
-    #        cat <<EOF >/etc/v2a/xray/conf/06_VLESS_gRPC_inbounds.json
+    #        cat <<EOF >/etc/v2ray-agent/xray/conf/06_VLESS_gRPC_inbounds.json
     #{
     #    "inbounds":[
     #        {
@@ -4741,13 +4749,13 @@ EOF
     #}
     #EOF
     #    elif [[ -z "$3" ]]; then
-    #        rm /etc/v2a/xray/conf/06_VLESS_gRPC_inbounds.json >/dev/null 2>&1
+    #        rm /etc/v2ray-agent/xray/conf/06_VLESS_gRPC_inbounds.json >/dev/null 2>&1
     #    fi
 
     # VLESS Vision
     if echo "${selectCustomInstallType}" | grep -q ",0," || [[ "$1" == "all" ]]; then
 
-        cat <<EOF >/etc/v2a/xray/conf/02_VLESS_TCP_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/02_VLESS_TCP_inbounds.json
 {
     "inbounds":[
         {
@@ -4770,8 +4778,8 @@ EOF
               "minVersion": "1.2",
               "certificates": [
                 {
-                  "certificateFile": "/etc/v2a/tls/${domain}.crt",
-                  "keyFile": "/etc/v2a/tls/${domain}.key",
+                  "certificateFile": "/etc/v2ray-agent/tls/${domain}.crt",
+                  "keyFile": "/etc/v2ray-agent/tls/${domain}.key",
                   "ocspStapling": 3600
                 }
               ]
@@ -4782,7 +4790,7 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/xray/conf/02_VLESS_TCP_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/xray/conf/02_VLESS_TCP_inbounds.json >/dev/null 2>&1
     fi
 
     # VLESS_TCP/reality
@@ -4793,7 +4801,7 @@ EOF
         initRealityClientServersName
         initRealityKey
         initRealityMldsa65
-        cat <<EOF >/etc/v2a/xray/conf/07_VLESS_vision_reality_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/xray/conf/07_VLESS_vision_reality_inbounds.json
 {
   "inbounds": [
     {
@@ -4877,7 +4885,7 @@ EOF
   }
 }
 EOF
-        #        cat <<EOF >/etc/v2a/xray/conf/08_VLESS_vision_gRPC_inbounds.json
+        #        cat <<EOF >/etc/v2ray-agent/xray/conf/08_VLESS_vision_gRPC_inbounds.json
         #{
         #  "inbounds": [
         #    {
@@ -4905,8 +4913,8 @@ EOF
         #EOF
 
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/xray/conf/07_VLESS_vision_reality_inbounds.json >/dev/null 2>&1
-        rm /etc/v2a/xray/conf/08_VLESS_vision_gRPC_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/xray/conf/07_VLESS_vision_reality_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/xray/conf/08_VLESS_vision_gRPC_inbounds.json >/dev/null 2>&1
     fi
     installSniffing
     if [[ -z "$3" ]]; then
@@ -4968,10 +4976,10 @@ initSingBoxConfig() {
         if [[ -n ${customUUID} ]]; then
             uuid=${customUUID}
         else
-            uuid=$(/etc/v2a/sing-box/sing-box generate uuid)
+            uuid=$(/etc/v2ray-agent/sing-box/sing-box generate uuid)
         fi
 
-    echoContent yellow "\n ---> Protocol: ${hysteriaProtocol}\n"
+    echoContent yellow "\nPlease enter a custom username [must be legal], [Enter] random username"
         read -r -p 'Username:' customEmail
         if [[ -z ${customEmail} ]]; then
             customEmail="$(echo "${uuid}" | cut -d "-" -f 1)-VLESS_TCP/TLS_Vision"
@@ -4981,7 +4989,7 @@ initSingBoxConfig() {
     if [[ -z "${addClientsStatus}" && -z "${uuid}" ]]; then
         addClientsStatus=
         echoContent red " ---> Already added, cannot be added repeatedly, can be deleted and re-added"
-        uuid=$(/etc/v2a/sing-box/sing-box generate uuid)
+        uuid=$(/etc/v2ray-agent/sing-box/sing-box generate uuid)
     fi
 
     if [[ -n "${uuid}" ]]; then
@@ -5002,7 +5010,7 @@ initSingBoxConfig() {
         handleSingBox stop
 
         checkPortOpen "${result[-1]}" "${domain}"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/02_VLESS_TCP_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/02_VLESS_TCP_inbounds.json
 {
     "inbounds":[
         {
@@ -5014,20 +5022,20 @@ initSingBoxConfig() {
           "tls":{
             "server_name": "${sslDomain}",
             "enabled": true,
-            "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-            "key_path": "/etc/v2a/tls/${sslDomain}.key"
+            "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+            "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
           }
         }
     ]
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/02_VLESS_TCP_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/02_VLESS_TCP_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",1," || [[ "$1" == "all" ]]; then
-        echoContent yellow "\n ---> Delay: ${hysteriaLag}\n"
-    echoContent skyBlue "\nProgress$1/${totalProgress}: Configure V2Ray to start automatically at boot"
+        echoContent yellow "\n===================== Configure VLESS+WS =====================\n"
+        echoContent skyBlue "\nStart configuring the VLESS+WS protocol port"
         echo
         mapfile -t result < <(initSingBoxPort "${singBoxVLESSWSPort}")
             echoContent green " ---> Tuic started successfully"
@@ -5037,7 +5045,7 @@ EOF
         handleSingBox stop
         randomPathFunction
         checkPortOpen "${result[-1]}" "${domain}"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/03_VLESS_WS_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/03_VLESS_WS_inbounds.json
 {
     "inbounds":[
         {
@@ -5049,8 +5057,8 @@ EOF
           "tls":{
             "server_name": "${sslDomain}",
             "enabled": true,
-            "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-            "key_path": "/etc/v2a/tls/${sslDomain}.key"
+            "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+            "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
           },
           "transport": {
             "type": "ws",
@@ -5063,7 +5071,7 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/03_VLESS_WS_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/03_VLESS_WS_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",3," || [[ "$1" == "all" ]]; then
@@ -5078,7 +5086,7 @@ EOF
         handleSingBox stop
         randomPathFunction
         checkPortOpen "${result[-1]}" "${domain}"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/05_VMess_WS_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/05_VMess_WS_inbounds.json
 {
     "inbounds":[
         {
@@ -5090,8 +5098,8 @@ EOF
           "tls":{
             "server_name": "${sslDomain}",
             "enabled": true,
-            "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-            "key_path": "/etc/v2a/tls/${sslDomain}.key"
+            "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+            "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
           },
           "transport": {
             "type": "ws",
@@ -5104,19 +5112,19 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/05_VMess_WS_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/05_VMess_WS_inbounds.json >/dev/null 2>&1
     fi
 
     # VLESS_Reality_Vision
     if echo "${selectCustomInstallType}" | grep -q ",7," || [[ "$1" == "all" ]]; then
-        echoContent yellow "\n --->Download speed: ${hysteriaClientDownloadSpeed}\n"
+        echoContent yellow "\n================= Configure VLESS+Reality+Vision =================\n"
         initRealityClientServersName
         initRealityKey
-    echoContent skyBlue "\nProgress$1/${totalProgress}: Configure Tuic to start automatically at boot"
+        echoContent skyBlue "\nStart configuring the VLESS+Reality+Vision protocol port"
         echo
         mapfile -t result < <(initSingBoxPort "${singBoxVLESSRealityVisionPort}")
             echoContent green " ---> Xray started successfully"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/07_VLESS_vision_reality_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/07_VLESS_vision_reality_inbounds.json
 {
   "inbounds": [
     {
@@ -5146,7 +5154,7 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/07_VLESS_vision_reality_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/07_VLESS_vision_reality_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",8," || [[ "$1" == "all" ]]; then
@@ -5157,7 +5165,7 @@ EOF
         echo
         mapfile -t result < <(initSingBoxPort "${singBoxVLESSRealityGRPCPort}")
             echoContent green " ---> Xray closed successfully"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/08_VLESS_vision_gRPC_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/08_VLESS_vision_gRPC_inbounds.json
 {
   "inbounds": [
     {
@@ -5191,17 +5199,17 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/08_VLESS_vision_gRPC_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/08_VLESS_vision_gRPC_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",6," || [[ "$1" == "all" ]]; then
-        echoContent yellow "\n ---> Upload speed: ${hysteriaClientUploadSpeed}\n"
-    echoContent skyBlue "\nPlease select the protocol type"
+        echoContent yellow "\n================== Configure Hysteria2 ==================\n"
+        echoContent skyBlue "\nStart configuring the Hysteria2 protocol port"
         echo
         mapfile -t result < <(initSingBoxPort "${singBoxHysteria2Port}")
-            echoContent green "\nPort range: ${hysteriaPortHoppingRange}\n"
+        echoContent green "\n ---> Hysteria2 port: ${result[-1]}"
         initHysteria2Network
-        cat <<EOF >/etc/v2a/sing-box/conf/config/06_hysteria2_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/06_hysteria2_inbounds.json
 {
     "inbounds": [
         {
@@ -5217,15 +5225,15 @@ EOF
                 "alpn": [
                     "h3"
                 ],
-                "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-                "key_path": "/etc/v2a/tls/${sslDomain}.key"
+                "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+                "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
             }
         }
     ]
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/06_hysteria2_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/06_hysteria2_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",4," || [[ "$1" == "all" ]]; then
@@ -5234,7 +5242,7 @@ EOF
         echo
         mapfile -t result < <(initSingBoxPort "${singBoxTrojanPort}")
                 echoContent green " ---> Port hopping added successfully"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/04_trojan_TCP_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/04_trojan_TCP_inbounds.json
 {
     "inbounds": [
         {
@@ -5245,15 +5253,15 @@ EOF
             "tls": {
                 "enabled": true,
                 "server_name":"${sslDomain}",
-                "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-                "key_path": "/etc/v2a/tls/${sslDomain}.key"
+                "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+                "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
             }
         }
     ]
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/04_trojan_TCP_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/04_trojan_TCP_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",9," || [[ "$1" == "all" ]]; then
@@ -5263,7 +5271,7 @@ EOF
         mapfile -t result < <(initSingBoxPort "${singBoxTuicPort}")
             echoContent green " ---> Deletion successful"
         initTuicProtocol
-        cat <<EOF >/etc/v2a/sing-box/conf/config/09_tuic_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/09_tuic_inbounds.json
 {
      "inbounds": [
         {
@@ -5279,15 +5287,15 @@ EOF
                 "alpn": [
                     "h3"
                 ],
-                "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-                "key_path": "/etc/v2a/tls/${sslDomain}.key"
+                "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+                "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
             }
         }
     ]
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/09_tuic_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/09_tuic_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",10," || [[ "$1" == "all" ]]; then
@@ -5296,7 +5304,7 @@ EOF
         echo
         mapfile -t result < <(initSingBoxPort "${singBoxNaivePort}")
         echoContent green " ---> The current port hopping range is: ${portHoppingStart}-${portHoppingEnd}"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/10_naive_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/10_naive_inbounds.json
 {
      "inbounds": [
         {
@@ -5308,15 +5316,15 @@ EOF
             "tls": {
                 "enabled": true,
                 "server_name":"${sslDomain}",
-                "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-                "key_path": "/etc/v2a/tls/${sslDomain}.key"
+                "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+                "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
             }
         }
     ]
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/10_naive_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/10_naive_inbounds.json >/dev/null 2>&1
     fi
     if echo "${selectCustomInstallType}" | grep -q ",11," || [[ "$1" == "all" ]]; then
     echoContent yellow "The end position of port jumping is 60000"
@@ -5333,7 +5341,7 @@ EOF
         checkPortOpen "${result[-1]}" "${domain}"
         singBoxNginxConfig "$1" "${result[-1]}"
         bootStartup nginx
-        cat <<EOF >/etc/v2a/sing-box/conf/config/11_VMess_HTTPUpgrade_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/11_VMess_HTTPUpgrade_inbounds.json
 {
     "inbounds":[
         {
@@ -5351,7 +5359,7 @@ EOF
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/11_VMess_HTTPUpgrade_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/11_VMess_HTTPUpgrade_inbounds.json >/dev/null 2>&1
     fi
 
     if echo "${selectCustomInstallType}" | grep -q ",13," || [[ "$1" == "all" ]]; then
@@ -5360,7 +5368,7 @@ EOF
         echo
         mapfile -t result < <(initSingBoxPort "${singBoxAnyTLSPort}")
             echoContent green "\n ---> Used successfully"
-        cat <<EOF >/etc/v2a/sing-box/conf/config/13_anytls_inbounds.json
+        cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/13_anytls_inbounds.json
 {
     "inbounds": [
         {
@@ -5372,15 +5380,15 @@ EOF
             "tls": {
                 "enabled": true,
                 "server_name":"${sslDomain}",
-                "certificate_path": "/etc/v2a/tls/${sslDomain}.crt",
-                "key_path": "/etc/v2a/tls/${sslDomain}.key"
+                "certificate_path": "/etc/v2ray-agent/tls/${sslDomain}.crt",
+                "key_path": "/etc/v2ray-agent/tls/${sslDomain}.key"
             }
         }
     ]
 }
 EOF
     elif [[ -z "$3" ]]; then
-        rm /etc/v2a/sing-box/conf/config/13_anytls_inbounds.json >/dev/null 2>&1
+        rm /etc/v2ray-agent/sing-box/conf/config/13_anytls_inbounds.json >/dev/null 2>&1
     fi
 
     if [[ -z "$3" ]]; then
@@ -5404,9 +5412,9 @@ EOF
     setSniffRouting
 }
 initSubscribeLocalConfig() {
-    rm -rf /etc/v2a/subscribe_local/default/*
-    rm -rf /etc/v2a/subscribe_local/clashMeta/*
-    rm -rf /etc/v2a/subscribe_local/sing-box/*
+    rm -rf /etc/v2ray-agent/subscribe_local/default/*
+    rm -rf /etc/v2ray-agent/subscribe_local/clashMeta/*
+    rm -rf /etc/v2ray-agent/subscribe_local/sing-box/*
 }
 # General
 defaultBase64Code() {
@@ -5426,29 +5434,29 @@ defaultBase64Code() {
         echoContent yellow " ---> Formatted details (VLESS+XHTTP+TLS)"
         echoContent green "Protocol:VLESS, address:${add}, SNI:${currentHost}, port:${port}, UUID:${id}, security:tls, transport:xhttp, path:${path}, mode:${currentXHTTPMode:-auto}, account:${email}\n"
         echoContent yellow " ---> QR code VLESS(VLESS+XHTTP+TLS)"
-        echoContent green "    https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dxhttp%26sni%3D${currentHost}%26host%3D${currentHost}%26fp%3Dchrome%26alpn%3Dh2%26path%3D%252F${path#/}%26mode%3D${currentXHTTPMode:-auto}%23${email}"
-        printf '%s\n' "${xhttpTLSURI}" >>"/etc/v2a/subscribe_local/default/${user}"
-        buildMihomoXHTTPTLSNode "${add}" "${port}" "${id}" "${currentHost}" "${path}" "${currentXHTTPMode:-auto}" "${email}" >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dxhttp%26sni%3D${currentHost}%26host%3D${currentHost}%26fp%3Dchrome%26alpn%3Dh2%26path%3D%252F${path#/}%26mode%3D${currentXHTTPMode:-auto}%23${email}"
+        printf '%s\n' "${xhttpTLSURI}" >>"/etc/v2ray-agent/subscribe_local/default/${user}"
+        buildMihomoXHTTPTLSNode "${add}" "${port}" "${id}" "${currentHost}" "${path}" "${currentXHTTPMode:-auto}" "${email}" >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
         return 0
     fi
-    if [[ ! -f "/etc/v2a/subscribe_local/sing-box/${user}" ]]; then
-        echo [] >"/etc/v2a/subscribe_local/sing-box/${user}"
+    if [[ ! -f "/etc/v2ray-agent/subscribe_local/sing-box/${user}" ]]; then
+        echo [] >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
     fi
     local singBoxSubscribeLocalConfig=
     if [[ "${type}" == "vlesstcp" ]]; then
 
-    echoContent yellow "Recommend about 1000"
-        echoContent green "    vless://${id}@${currentHost}:${port}?encryption=none&security=tls&fp=chrome&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}\n"
+    echoContent yellow " ---> Universal format (VLESS+TCP+TLS_Vision)"
+        echoContent green "    vless://${id}@$(getPublicIP "" force):${port}?encryption=none&security=tls&fp=chrome&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}\n"
 
-    echoContent yellow "Please enter the port jumping range, for example [30000-31000]"
-            echoContent green " vless://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=tls&fp=chrome&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx- vision#${email}\n"
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
-vless://${id}@${currentHost}:${port}?encryption=none&security=tls&type=tcp&host=${currentHost}&fp=chrome&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}
+        echoContent yellow " ---> Formatted plain text (VLESS+TCP+TLS_Vision)"
+        echoContent green "Protocol type: VLESS, address: ${currentHost}, port: ${port}, user ID: ${id}, security: tls, client-fingerprint: chrome, transmission method: tcp, flow: xtls-rprx-vision, account name: ${email}\n"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
+vless://${id}@$(getPublicIP "" force):${port}?encryption=none&security=tls&type=tcp&host=${currentHost}&fp=chrome&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vless
-    server: ${currentHost}
+    server: $(getPublicIP "" force)
     port: ${port}
     uuid: ${id}
     network: tcp
@@ -5457,26 +5465,26 @@ EOF
     flow: xtls-rprx-vision
     client-fingerprint: chrome
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"${currentHost}\",\"server_port\":${port},\"uuid\":\"${id}\",\"flow\":\"xtls-rprx-vision\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"packet_encoding\":\"xudp\"}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"$(getPublicIP "" force)\",\"server_port\":${port},\"uuid\":\"${id}\",\"flow\":\"xtls-rprx-vision\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"packet_encoding\":\"xudp\"}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code VLESS(VLESS+TCP+TLS_Vision)"
-        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${currentHost}%3A${port}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26type%3Dtcp%26${currentHost}%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP "" force)%3A${port}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26type%3Dtcp%26host%3D${currentHost}%26headerType%3Dnone%26sni%3D${currentHost}%26flow%3Dxtls-rprx-vision%23${email}"
 
     elif [[ "${type}" == "vmessws" ]]; then
         qrCodeBase64Default=$(echo -n "{\"port\":${port},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"${path}\",\"net\":\"ws\",\"add\":\"${add}\",\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}" | base64 -w 0)
         qrCodeBase64Default="${qrCodeBase64Default// /}"
 
-    echoContent yellow "2.Delete port hopping"
+    echoContent yellow " ---> Universal json (VMess+WS+TLS)"
         echoContent green "    {\"port\":${port},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"${path}\",\"net\":\"ws\",\"add\":\"${add}\",\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}\n"
-    echoContent yellow "3.Check port jumping"
+    echoContent yellow " ---> Universal vmess(VMess+WS+TLS) link"
         echoContent green "    vmess://${qrCodeBase64Default}\n"
-            echoContent yellow "\n ---> Port: ${tuicPort}"
+            echoContent yellow " ---> QR code vmess(VMess+WS+TLS)"
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vmess://${qrCodeBase64Default}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vmess
     server: ${add}
@@ -5494,22 +5502,22 @@ EOF
       headers:
         Host: ${currentHost}
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vmess\",\"server\":\"${add}\",\"server_port\":${port},\"uuid\":\"${id}\",\"alter_id\":0,\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"packet_encoding\":\"packetaddr\",\"transport\":{\"type\":\"ws\",\"path\":\"${path}\",\"max_early_data\":2048,\"early_data_header_name\":\"Sec-WebSocket-Protocol\"}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vmess\",\"server\":\"${add}\",\"server_port\":${port},\"uuid\":\"${id}\",\"alter_id\":0,\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"packet_encoding\":\"packetaddr\",\"transport\":{\"type\":\"ws\",\"path\":\"${path}\",\"max_early_data\":2048,\"early_data_header_name\":\"Sec-WebSocket-Protocol\"}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
         showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}"
 
     elif [[ "${type}" == "vlessws" ]]; then
 
-        echoContent yellow "Please enter the Tuic port [enter random 10000-30000], cannot be repeated with other services"
+        echoContent yellow " ---> Universal format (VLESS+WS+TLS)"
         echoContent green "    vless://${id}@${add}:${port}?encryption=none&security=tls&type=ws&host=${currentHost}&sni=${currentHost}&fp=chrome&path=${path}#${email}\n"
 
-    echoContent yellow "1.bbr(default)"
-            echoContent green "Protocol type: VLESS, address: ${currentHost}, port: ${currentDefaultPort}, user ID: ${id}, security: tls, client-fingerprint: chrome, transmission method: tcp, flow: xtls-rprx -vision, account name:${email}\n"
+        echoContent yellow " ---> Formatted plain text (VLESS+WS+TLS)"
+        echoContent green "    Protocol type: VLESS, address: ${add}, camouflage domain/SNI: ${currentHost}, port: ${port}, client-fingerprint: chrome, user ID: ${id}, security: tls, transmission method: ws, path: ${path}, account name: ${email}\n"
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@${add}:${port}?encryption=none&security=tls&type=ws&host=${currentHost}&sni=${currentHost}&fp=chrome&path=${path}#${email}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vless
     server: ${add}
@@ -5526,13 +5534,11 @@ EOF
         Host: ${currentHost}
 EOF
 
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"${add}\",\"server_port\":${port},\"uuid\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"multiplex\":{\"enabled\":false,\"protocol\":\"smux\",\"max_streams\":32},\"packet_encoding\":\"xudp\",\"transport\":{\"type\":\"ws\",\"path\":\"${path}\",\"headers\":{\"Host\":\"${currentHost}\"}}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"${add}\",\"server_port\":${port},\"uuid\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"multiplex\":{\"enabled\":false,\"protocol\":\"smux\",\"max_streams\":32},\"packet_encoding\":\"xudp\",\"transport\":{\"type\":\"ws\",\"path\":\"${path}\",\"headers\":{\"Host\":\"${currentHost}\"}}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code VLESS(VLESS+WS+TLS)"
         showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dws%26host%3D${currentHost}%26fp%3Dchrome%26sni%3D${currentHost}%26path%3D${path}%23${email}"
-
-    echoContent yellow "2.cubic"
 
     elif [[ "${type}" == "vlessXHTTP" ]]; then
 
@@ -5543,15 +5549,16 @@ EOF
             xhttpMldsa65ParamEncoded="%26pqv%3D${currentRealityMldsa65Verify}"
         fi
 
-    echoContent yellow "3.new_reno"
+    echoContent yellow " ---> Universal format (VLESS+reality+XHTTP)"
         echoContent green "    vless://${id}@${add}:${port}?encryption=none&security=reality${xhttpMldsa65Param}&type=xhttp&sni=${xrayVLESSRealityXHTTPServerName}&host=${xrayVLESSRealityXHTTPServerName}&fp=chrome&path=${path}&pbk=${currentRealityXHTTPPublicKey}&sid=6ba85179e30d4fc2#${email}\n"
 
-    echoContent yellow "\n ---> Algorithm: ${tuicAlgorithm}\n"
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        echoContent yellow " ---> Formatted plain text (VLESS+reality+XHTTP)"
+        echoContent green "Protocol type: VLESS reality, address: ${add}, publicKey: ${currentRealityXHTTPPublicKey}, shortId: 6ba85179e30d4fc2, serverNames: ${xrayVLESSRealityXHTTPServerName}, port: ${port}, path: ${path}, SNI: ${xrayVLESSRealityXHTTPServerName}, camouflage domain: ${xrayVLESSRealityXHTTPServerName}, user ID: ${id}, transmission method: xhttp, account name: ${email}\n"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@${add}:${port}?encryption=none&security=reality${xhttpMldsa65Param}&type=xhttp&sni=${xrayVLESSRealityXHTTPServerName}&fp=chrome&path=${path}&pbk=${currentRealityXHTTPPublicKey}&sid=6ba85179e30d4fc2#${email}
 EOF
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vless
     server: ${add}
@@ -5579,16 +5586,16 @@ EOF
         [[ "${type}" == "vlessgrpc" ]]
     then
 
-    echoContent yellow "will replace the prefix with ${xtlsType}"
+    echoContent yellow " ---> Universal format (VLESS+gRPC+TLS)"
         echoContent green "    vless://${id}@${add}:${port}?encryption=none&security=tls&type=grpc&host=${currentHost}&path=${currentPath}grpc&fp=chrome&serviceName=${currentPath}grpc&alpn=h2&sni=${currentHost}#${email}\n"
 
-    echoContent yellow "If the prefix is Trojan, two Trojan protocol nodes will appear when viewing the account, and one of them is unavailable xtls"
-            echoContent green "    vless://${id}@${currentHost}:${currentDefaultPort}?security=tls&encryption=none&host=${currentHost}&fp=chrome&headerType=none&type=tcp#${email}\n"
+        echoContent yellow " ---> Formatted plain text (VLESS+gRPC+TLS)"
+        echoContent green "    Protocol type: VLESS, address: ${add}, camouflage domain/SNI: ${currentHost}, port: ${port}, user ID: ${id}, security: tls, transmission method: gRPC, alpn: h2, client-fingerprint: chrome, serviceName: ${currentPath}grpc, account name: ${email}\n"
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@${add}:${port}?encryption=none&security=tls&type=grpc&host=${currentHost}&path=${currentPath}grpc&serviceName=${currentPath}grpc&fp=chrome&alpn=h2&sni=${currentHost}#${email}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vless
     server: ${add}
@@ -5602,8 +5609,8 @@ EOF
     grpc-opts:
       grpc-service-name: ${currentPath}grpc
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\": \"vless\",\"server\": \"${add}\",\"server_port\": ${port},\"uuid\": \"${id}\",\"tls\": {  \"enabled\": true,  \"server_name\": \"${currentHost}\",  \"utls\": {    \"enabled\": true,    \"fingerprint\": \"chrome\"  }},\"packet_encoding\": \"xudp\",\"transport\": {  \"type\": \"grpc\",  \"service_name\": \"${currentPath}grpc\"}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\": \"vless\",\"server\": \"${add}\",\"server_port\": ${port},\"uuid\": \"${id}\",\"tls\": {  \"enabled\": true,  \"server_name\": \"${currentHost}\",  \"utls\": {    \"enabled\": true,    \"fingerprint\": \"chrome\"  }},\"packet_encoding\": \"xudp\",\"transport\": {  \"type\": \"grpc\",  \"service_name\": \"${currentPath}grpc\"}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code VLESS(VLESS+gRPC+TLS)"
         showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40${add}%3A${port}%3Fencryption%3Dnone%26security%3Dtls%26type%3Dgrpc%26host%3D${currentHost}%26serviceName%3D${currentPath}grpc%26fp%3Dchrome%26path%3D${currentPath}grpc%26sni%3D${currentHost}%26alpn%3Dh2%23${email}"
@@ -5612,27 +5619,27 @@ EOF
         # URLEncode
         # URLEncode
         echoContent yellow " ---> Trojan(TLS)"
-        echoContent green "    trojan://${id}@${currentHost}:${port}?peer=${currentHost}&fp=chrome&sni=${currentHost}&alpn=http/1.1#${currentHost}_Trojan\n"
+        echoContent green "    trojan://${id}@$(getPublicIP "" force):${port}?peer=${currentHost}&fp=chrome&sni=${currentHost}&alpn=http/1.1#${currentHost}_Trojan\n"
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
-trojan://${id}@${currentHost}:${port}?peer=${currentHost}&fp=chrome&sni=${currentHost}&alpn=http/1.1#${email}_Trojan
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
+trojan://${id}@$(getPublicIP "" force):${port}?peer=${currentHost}&fp=chrome&sni=${currentHost}&alpn=http/1.1#${email}_Trojan
 EOF
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: trojan
-    server: ${currentHost}
+    server: $(getPublicIP "" force)
     port: ${port}
     password: ${id}
     client-fingerprint: chrome
     udp: true
     sni: ${currentHost}
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"trojan\",\"server\":\"${currentHost}\",\"server_port\":${port},\"password\":\"${id}\",\"tls\":{\"alpn\":[\"http/1.1\"],\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"trojan\",\"server\":\"$(getPublicIP "" force)\",\"server_port\":${port},\"password\":\"${id}\",\"tls\":{\"alpn\":[\"http/1.1\"],\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code Trojan(TLS)"
-        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${currentHost}%3a${port}%3fpeer%3d${currentHost}%26fp%3Dchrome%26sni%3d${currentHost}%26alpn%3Dhttp/1.1%23${email}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40$(getPublicIP "" force)%3a${port}%3fpeer%3d${currentHost}%26fp%3Dchrome%26sni%3d${currentHost}%26alpn%3Dhttp/1.1%23${email}"
 
     elif [[ "${type}" == "trojangrpc" ]]; then
         # URLEncode
@@ -5641,10 +5648,10 @@ EOF
 
         echoContent yellow " ---> Trojan gRPC(TLS)"
         echoContent green "    trojan://${id}@${add}:${port}?encryption=none&peer=${currentHost}&fp=chrome&security=tls&type=grpc&sni=${currentHost}&alpn=h2&path=${currentPath}trojangrpc&serviceName=${currentPath}trojangrpc#${email}\n"
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 trojan://${id}@${add}:${port}?encryption=none&peer=${currentHost}&security=tls&type=grpc&fp=chrome&sni=${currentHost}&alpn=h2&path=${currentPath}trojangrpc&serviceName=${currentPath}trojangrpc#${email}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     server: ${add}
     port: ${port}
@@ -5656,8 +5663,8 @@ EOF
     grpc-opts:
       grpc-service-name: ${currentPath}trojangrpc
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"trojan\",\"server\":\"${add}\",\"server_port\":${port},\"password\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"insecure\":true,\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"transport\":{\"type\":\"grpc\",\"service_name\":\"${currentPath}trojangrpc\",\"idle_timeout\":\"15s\",\"ping_timeout\":\"15s\",\"permit_without_stream\":false},\"multiplex\":{\"enabled\":false,\"protocol\":\"smux\",\"max_streams\":32}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"trojan\",\"server\":\"${add}\",\"server_port\":${port},\"password\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"insecure\":true,\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"transport\":{\"type\":\"grpc\",\"service_name\":\"${currentPath}trojangrpc\",\"idle_timeout\":\"15s\",\"ping_timeout\":\"15s\",\"permit_without_stream\":false},\"multiplex\":{\"enabled\":false,\"protocol\":\"smux\",\"max_streams\":32}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code Trojan gRPC(TLS)"
         showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=trojan%3a%2f%2f${id}%40${add}%3a${port}%3Fencryption%3Dnone%26fp%3Dchrome%26security%3Dtls%26peer%3d${currentHost}%26type%3Dgrpc%26sni%3d${currentHost}%26path%3D${currentPath}trojangrpc%26alpn%3Dh2%26serviceName%3D${currentPath}trojangrpc%23${email}"
@@ -5673,17 +5680,17 @@ EOF
             multiPortEncode="mport%3D${port}%26"
         fi
 
-        echoContent green "    hysteria2://${id}@${currentHost}:${singBoxHysteria2Port}?${multiPort}peer=${currentHost}&insecure=0&sni=${currentHost}&alpn=h3#${email}\n"
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
-hysteria2://${id}@${currentHost}:${singBoxHysteria2Port}?${multiPort}peer=${currentHost}&insecure=0&sni=${currentHost}&alpn=h3#${email}
+        echoContent green "    hysteria2://${id}@$(getPublicIP "" force):${singBoxHysteria2Port}?${multiPort}peer=${currentHost}&insecure=0&sni=${currentHost}&alpn=h3#${email}\n"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
+hysteria2://${id}@$(getPublicIP "" force):${singBoxHysteria2Port}?${multiPort}peer=${currentHost}&insecure=0&sni=${currentHost}&alpn=h3#${email}
 EOF
         echoContent yellow " ---> v2rayN(hysteria+TLS)"
         echo "{\"server\": \"${currentHost}:${port}\",\"socks5\": { \"listen\": \"127.0.0.1:7798\", \"timeout\": 300},\"auth\":\"${id}\",\"tls\":{\"sni\":\"${currentHost}\"}}" | jq
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: hysteria2
-    server: ${currentHost}
+    server: $(getPublicIP "" force)
     ${clashMetaPortContent}
     password: ${id}
     alpn:
@@ -5693,11 +5700,11 @@ EOF
     down: "${hysteria2ClientDownloadSpeed} Mbps"
 EOF
 
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"hysteria2\",\"server\":\"${currentHost}\",\"server_port\":${singBoxHysteria2Port},\"up_mbps\":${hysteria2ClientUploadSpeed},\"down_mbps\":${hysteria2ClientDownloadSpeed},\"password\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"alpn\":[\"h3\"]}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"hysteria2\",\"server\":\"$(getPublicIP "" force)\",\"server_port\":${singBoxHysteria2Port},\"up_mbps\":${hysteria2ClientUploadSpeed},\"down_mbps\":${hysteria2ClientDownloadSpeed},\"password\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"alpn\":[\"h3\"]}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code Hysteria2(TLS)"
-        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=hysteria2%3A%2F%2F${id}%40${currentHost}%3A${singBoxHysteria2Port}%3F${multiPortEncode}peer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%26alpn%3Dh3%23${email}"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=hysteria2%3A%2F%2F${id}%40$(getPublicIP "" force)%3A${singBoxHysteria2Port}%3F${multiPortEncode}peer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%26alpn%3Dh3%23${email}"
 
     elif [[ "${type}" == "vlessReality" ]]; then
         local realityServerName=${xrayVLESSRealityServerName}
@@ -5708,15 +5715,15 @@ EOF
             realityServerName=${singBoxVLESSRealityVisionServerName}
             publicKey=${singBoxVLESSRealityPublicKey}
         fi
-    echoContent yellow "# Notes"
+    echoContent yellow " ---> Universal format (VLESS+reality+uTLS+Vision)"
         echoContent green "    vless://${id}@$(getPublicIP):${port}?encryption=none&security=reality&pqv=${realityMldsa65Verify}&type=tcp&sni=${realityServerName}&fp=chrome&pbk=${publicKey}&sid=6ba85179e30d4fc2&flow=xtls-rprx-vision#${email}\n"
 
-    echoContent yellow "\nTutorial address:"
-            echoContent green "Protocol type: VLESS, address: ${currentHost}, port: ${currentDefaultPort}, user ID: ${id}, security: tls, client-fingerprint: chrome, transmission method: tcp, account name: ${email}\n"
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        echoContent yellow " ---> Formatted plain text (VLESS+reality+uTLS+Vision)"
+        echoContent green "Protocol type: VLESS reality, address: $(getPublicIP), publicKey: ${publicKey}, shortId: 6ba85179e30d4fc2, pqv=${realityMldsa65Verify}, serverNames: ${realityServerName}, port: ${port}, user ID: ${id}, transmission method: tcp, account name: ${email}\n"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@$(getPublicIP):${port}?encryption=none&security=reality&pqv=${realityMldsa65Verify}&type=tcp&sni=${realityServerName}&fp=chrome&pbk=${publicKey}&sid=6ba85179e30d4fc2&flow=xtls-rprx-vision#${email}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vless
     server: $(getPublicIP)
@@ -5732,8 +5739,8 @@ EOF
       short-id: 6ba85179e30d4fc2
     client-fingerprint: chrome
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"$(getPublicIP)\",\"server_port\":${port},\"uuid\":\"${id}\",\"flow\":\"xtls-rprx-vision\",\"tls\":{\"enabled\":true,\"server_name\":\"${realityServerName}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"},\"reality\":{\"enabled\":true,\"public_key\":\"${publicKey}\",\"short_id\":\"6ba85179e30d4fc2\"}},\"packet_encoding\":\"xudp\"}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"$(getPublicIP)\",\"server_port\":${port},\"uuid\":\"${id}\",\"flow\":\"xtls-rprx-vision\",\"tls\":{\"enabled\":true,\"server_name\":\"${realityServerName}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"},\"reality\":{\"enabled\":true,\"public_key\":\"${publicKey}\",\"short_id\":\"6ba85179e30d4fc2\"}},\"packet_encoding\":\"xudp\"}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code VLESS(VLESS+reality+uTLS+Vision)"
         showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dtcp%26sni%3D${realityServerName}%26fp%3Dchrome%26pbk%3D${publicKey}%26sid%3D6ba85179e30d4fc2%26flow%3Dxtls-rprx-vision%23${email}"
@@ -5748,16 +5755,17 @@ EOF
             publicKey=${singBoxVLESSRealityPublicKey}
         fi
 
-    echoContent yellow "2.CNAME who.int"
+    echoContent yellow " ---> Universal format (VLESS+reality+uTLS+gRPC)"
         # pqv=${realityMldsa65Verify}&
         echoContent green "    vless://${id}@$(getPublicIP):${port}?encryption=none&security=reality&type=grpc&sni=${realityServerName}&fp=chrome&pbk=${publicKey}&sid=6ba85179e30d4fc2&path=grpc&serviceName=grpc#${email}\n"
 
-    echoContent yellow "3.CNAME blog.hostmonit.com"
+        echoContent yellow " ---> Formatted plain text (VLESS+reality+uTLS+gRPC)"
         # pqv=${realityMldsa65Verify}，
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        echoContent green "Protocol type: VLESS reality, serviceName: grpc, address: $(getPublicIP), publicKey: ${publicKey}, shortId: 6ba85179e30d4fc2, serverNames: ${realityServerName}, port: ${port}, user ID: ${id}, transmission method: gRPC, client-fingerprint: chrome, account name: ${email}\n"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 vless://${id}@$(getPublicIP):${port}?encryption=none&security=reality&pqv=${realityMldsa65Verify}&type=grpc&sni=${realityServerName}&fp=chrome&pbk=${publicKey}&sid=6ba85179e30d4fc2&path=grpc&serviceName=grpc#${email}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vless
     server: $(getPublicIP)
@@ -5774,8 +5782,8 @@ EOF
       grpc-service-name: "grpc"
     client-fingerprint: chrome
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"$(getPublicIP)\",\"server_port\":${port},\"uuid\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${realityServerName}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"},\"reality\":{\"enabled\":true,\"public_key\":\"${publicKey}\",\"short_id\":\"6ba85179e30d4fc2\"}},\"packet_encoding\":\"xudp\",\"transport\":{\"type\":\"grpc\",\"service_name\":\"grpc\"}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vless\",\"server\":\"$(getPublicIP)\",\"server_port\":${port},\"uuid\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${realityServerName}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"},\"reality\":{\"enabled\":true,\"public_key\":\"${publicKey}\",\"short_id\":\"6ba85179e30d4fc2\"}},\"packet_encoding\":\"xudp\",\"transport\":{\"type\":\"grpc\",\"service_name\":\"grpc\"}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code VLESS(VLESS+reality+uTLS+gRPC)"
         showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vless%3A%2F%2F${id}%40$(getPublicIP)%3A${port}%3Fencryption%3Dnone%26security%3Dreality%26type%3Dgrpc%26sni%3D${realityServerName}%26fp%3Dchrome%26pbk%3D${publicKey}%26sid%3D6ba85179e30d4fc2%26path%3Dgrpc%26serviceName%3Dgrpc%23${email}"
@@ -5787,22 +5795,22 @@ EOF
         tuicPassword=$(echo "${id}" | awk -F "[_]" '{print $2}')
 
         if [[ -z "${email}" ]]; then
-    echoContent red "\n================================================ ================="
+            echoContent red " ---> Failed to read the configuration, please reinstall"
             exit 0
         fi
 
-            echoContent yellow " ---> Universal format (VLESS+TCP+TLS_Vision)"
-        echoContent green "    trojan://${id}@${currentHost}:${currentDefaultPort}?encryption=none&security=xtls&type=tcp&host=${currentHost}&headerType=none&sni=${currentHost}&flow=xtls-rprx-vision#${email}\n"
+        echoContent yellow " ---> Formatted plain text (Tuic+TLS)"
+        echoContent green "    Protocol type: Tuic, address: ${currentHost}, port: ${port}, uuid: ${tuicUUID}, password: ${tuicPassword}, congestion-controller: ${tuicAlgorithm}, alpn: h3, account name: ${email}\n"
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
-tuic://${tuicUUID}:${tuicPassword}@${currentHost}:${port}?congestion_control=${tuicAlgorithm}&alpn=h3&sni=${currentHost}&udp_relay_mode=quic&allow_insecure=0#${email}
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
+tuic://${tuicUUID}:${tuicPassword}@$(getPublicIP "" force):${port}?congestion_control=${tuicAlgorithm}&alpn=h3&sni=${currentHost}&udp_relay_mode=quic&allow_insecure=0#${email}
 EOF
         echoContent yellow " ---> v2rayN(Tuic+TLS)"
         echo "{\"relay\": {\"server\": \"${currentHost}:${port}\",\"uuid\": \"${tuicUUID}\",\"password\": \"${tuicPassword}\",\"ip\": \"${currentHost}\",\"congestion_control\": \"${tuicAlgorithm}\",\"alpn\": [\"h3\"]},\"local\": {\"server\": \"127.0.0.1:7798\"},\"log_level\": \"warn\"}" | jq
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
-    server: ${currentHost}
+    server: $(getPublicIP "" force)
     type: tuic
     port: ${port}
     uuid: ${tuicUUID}
@@ -5812,39 +5820,37 @@ EOF
     congestion-controller: ${tuicAlgorithm}
     disable-sni: true
     reduce-rtt: true
-    sni: ${email}
+    sni: ${currentHost}
 EOF
 
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\": \"tuic\",\"server\": \"${currentHost}\",\"server_port\": ${port},\"uuid\": \"${tuicUUID}\",\"password\": \"${tuicPassword}\",\"congestion_control\": \"${tuicAlgorithm}\",\"tls\": {\"enabled\": true,\"server_name\": \"${currentHost}\",\"alpn\": [\"h3\"]}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\": \"tuic\",\"server\": \"$(getPublicIP "" force)\",\"server_port\": ${port},\"uuid\": \"${tuicUUID}\",\"password\": \"${tuicPassword}\",\"congestion_control\": \"${tuicAlgorithm}\",\"tls\": {\"enabled\": true,\"server_name\": \"${currentHost}\",\"alpn\": [\"h3\"]}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
-            echoContent yellow " ---> Formatted plain text (VLESS+TCP+TLS_Vision)"
-echoContent yellow " ---> QR code Tuic(TLS)"
-showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=tuic%3A%2F%2F${tuicUUID}%3A${tuicPassword}%40${currentHost}%3A${tuicPort}%3Fcongestion_control%3D${tuicAlgorithm}%26alpn%3Dh3%26sni%3D${currentHost}%26udp_relay_mode%3Dquic%26allow_insecure%3D0%23${email}"
+            echoContent yellow "\n ---> QR code Tuic"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=tuic%3A%2F%2F${tuicUUID}%3A${tuicPassword}%40$(getPublicIP "" force)%3A${tuicPort}%3Fcongestion_control%3D${tuicAlgorithm}%26alpn%3Dh3%26sni%3D${currentHost}%26udp_relay_mode%3Dquic%26allow_insecure%3D0%23${email}"
     elif [[ "${type}" == "naive" ]]; then
         echoContent yellow " ---> Naive(TLS)"
 
         echoContent green "    naive+https://${email}:${id}@${currentHost}:${port}?padding=true#${email}\n"
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
 naive+https://${email}:${id}@${currentHost}:${port}?padding=true#${email}
 EOF
-            echoContent yellow " ---> QR code VLESS(VLESS+TCP+TLS_Vision)"
-echoContent yellow " ---> QR code naive"
-showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=naive%2Bhttps%3A%2F%2F${email}%3A${id}%40${currentHost}%3A${port}%3Fpadding%3Dtrue%23${email}"
+            echoContent yellow " ---> QR code Naive(TLS)"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=naive%2Bhttps%3A%2F%2F${email}%3A${id}%40${currentHost}%3A${port}%3Fpadding%3Dtrue%23${email}"
     elif [[ "${type}" == "vmessHTTPUpgrade" ]]; then
         qrCodeBase64Default=$(echo -n "{\"port\":${port},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"${path}\",\"net\":\"httpupgrade\",\"add\":\"${add}\",\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}" | base64 -w 0)
         qrCodeBase64Default="${qrCodeBase64Default// /}"
 
-            echoContent yellow " ---> Universal format (VLESS+TCP+TLS)"
+            echoContent yellow " ---> Universal json (VMess+HTTPUpgrade+TLS)"
         echoContent green "    {\"port\":${port},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"${path}\",\"net\":\"httpupgrade\",\"add\":\"${add}\",\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}\n"
-            echoContent yellow " ---> Formatted plain text (VLESS+TCP+TLS)"
+            echoContent yellow " ---> Universal vmess(VMess+HTTPUpgrade+TLS) link"
         echoContent green "    vmess://${qrCodeBase64Default}\n"
-            echoContent yellow " ---> QR code VLESS(VLESS+TCP+TLS)"
+            echoContent yellow " ---> QR code vmess(VMess+HTTPUpgrade+TLS)"
 
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
    vmess://${qrCodeBase64Default}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: vmess
     server: ${add}
@@ -5863,9 +5869,9 @@ EOF
        Host: ${currentHost}
      v2ray-http-upgrade: true
 EOF
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vmess\",\"server\":\"${add}\",\"server_port\":${port},\"uuid\":\"${id}\",\"security\":\"auto\",\"alter_id\":0,\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"packet_encoding\":\"packetaddr\",\"transport\":{\"type\":\"httpupgrade\",\"path\":\"${path}\"}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"vmess\",\"server\":\"${add}\",\"server_port\":${port},\"uuid\":\"${id}\",\"security\":\"auto\",\"alter_id\":0,\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\",\"utls\":{\"enabled\":true,\"fingerprint\":\"chrome\"}},\"packet_encoding\":\"packetaddr\",\"transport\":{\"type\":\"httpupgrade\",\"path\":\"${path}\"}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
 
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
         echoContent yellow " ---> QR code vmess(VMess+HTTPUpgrade+TLS)"
         showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=vmess://${qrCodeBase64Default}"
@@ -5873,18 +5879,18 @@ EOF
     elif [[ "${type}" == "anytls" ]]; then
         echoContent yellow " ---> AnyTLS"
 
-        echoContent yellow " ---> Common format (Trojan+TCP+TLS_Vision)"
-        echoContent green "Protocol type: Trojan, address: ${currentHost}, port: ${currentDefaultPort}, user ID: ${id}, security: xtls, transmission method: tcp, flow: xtls-rprx-vision, account name: ${email}\n"
+        echoContent yellow " ---> Formatted plain text (AnyTLS)"
+        echoContent green "Protocol type: anytls, address: ${currentHost}, port: ${singBoxAnyTLSPort}, user ID: ${id}, transmission method: tcp, account name: ${email}\n"
 
-        echoContent green "    anytls://${id}@${currentHost}:${singBoxAnyTLSPort}?peer=${currentHost}&insecure=0&sni=${currentHost}#${email}\n"
-        cat <<EOF >>"/etc/v2a/subscribe_local/default/${user}"
-anytls://${id}@${currentHost}:${singBoxAnyTLSPort}?peer=${currentHost}&insecure=0&sni=${currentHost}#${email}
+        echoContent green "    anytls://${id}@$(getPublicIP "" force):${singBoxAnyTLSPort}?peer=${currentHost}&insecure=0&sni=${currentHost}#${email}\n"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/default/${user}"
+anytls://${id}@$(getPublicIP "" force):${singBoxAnyTLSPort}?peer=${currentHost}&insecure=0&sni=${currentHost}#${email}
 EOF
-        cat <<EOF >>"/etc/v2a/subscribe_local/clashMeta/${user}"
+        cat <<EOF >>"/etc/v2ray-agent/subscribe_local/clashMeta/${user}"
   - name: "${email}"
     type: anytls
     port: ${singBoxAnyTLSPort}
-    server: ${currentHost}
+    server: $(getPublicIP "" force)
     password: ${id}
     client-fingerprint: chrome
     udp: true
@@ -5894,12 +5900,11 @@ EOF
       - http/1.1
 EOF
 
-        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"anytls\",\"server\":\"${currentHost}\",\"server_port\":${singBoxAnyTLSPort},\"password\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\"}}]" "/etc/v2a/subscribe_local/sing-box/${user}")
-        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2a/subscribe_local/sing-box/${user}"
+        singBoxSubscribeLocalConfig=$(jq -r ". += [{\"tag\":\"${email}\",\"type\":\"anytls\",\"server\":\"$(getPublicIP "" force)\",\"server_port\":${singBoxAnyTLSPort},\"password\":\"${id}\",\"tls\":{\"enabled\":true,\"server_name\":\"${currentHost}\"}}]" "/etc/v2ray-agent/subscribe_local/sing-box/${user}")
+        echo "${singBoxSubscribeLocalConfig}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${user}"
 
-        echoContent yellow " ---> Formatted plain text (Trojan+TCP+TLS_Vision)"
-echoContent yellow " ---> QR code AnyTLS"
-showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=anytls%3A%2F%2F${id}%40${currentHost}%3A${singBoxAnyTLSPort}%3Fpeer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%23${email}"
+        echoContent yellow " ---> QR code AnyTLS"
+        showQRCodeFromAPIURL "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=anytls%3A%2F%2F${id}%40$(getPublicIP "" force)%3A${singBoxAnyTLSPort}%3Fpeer%3D${currentHost}%26insecure%3D0%26sni%3D${currentHost}%23${email}"
     fi
 
 }
@@ -5932,7 +5937,7 @@ showAccounts() {
     # VLESS TCP
     if echo ${currentInstallProtocolType} | grep -q ",0,"; then
 
-    echoContent skyBlue "\nFunction 1/${totalProgress}: Switch to ${xtlsType}"
+        echoContent skyBlue "============================= VLESS TCP TLS_Vision [Recommended] ==============================\n"
         jq .inbounds[0].settings.clients//.inbounds[0].users ${configPath}02_VLESS_TCP_inbounds.json | jq -c '.[]' | while read -r user; do
             local email=
             email=$(echo "${user}" | jq -r .email//.name)
@@ -6182,7 +6187,7 @@ showAccounts() {
     if echo ${currentInstallProtocolType} | grep -q ",14," && [[ -f "${configPath}14_VLESS_XHTTP_TLS_inbounds.json" ]]; then
         echoContent skyBlue "\n================================ VLESS XHTTP TLS [random public port] ================================\n"
         local xhttpTLSCDNAddress=""
-        if [[ -f "/etc/v2a/cdn" && -n "$(head -1 /etc/v2a/cdn)" ]]; then
+        if [[ -f "/etc/v2ray-agent/cdn" && -n "$(head -1 /etc/v2ray-agent/cdn)" ]]; then
             xhttpTLSCDNAddress="${currentCDNAddress}"
         fi
         local xhttpTLSUsedNames=$'\n'
@@ -6246,14 +6251,14 @@ checkNginx302() {
 # Backup and restore nginx files
 backupNginxConfig() {
     if [[ "$1" == "backup" ]]; then
-        cp ${nginxConfigPath}alone.conf /etc/v2a/alone_backup.conf
+        cp ${nginxConfigPath}alone.conf /etc/v2ray-agent/alone_backup.conf
         echoContent green "    {\"port\":${currentDefaultPort},\"ps\":\"${email}\",\"tls\":\"tls\",\"id\":\"${id}\",\"aid\":0,\"v\":2,\"host\":\"${currentHost}\",\"type\":\"none\",\"path\":\"/${currentPath}vws\",\"net\":\"ws\",\"add\":\"${add}\",\"allowInsecure\":0,\"method\":\"none\",\"peer\":\"${currentHost}\",\"sni\":\"${currentHost}\"}\n"
     fi
 
-    if [[ "$1" == "restoreBackup" ]] && [[ -f "/etc/v2a/alone_backup.conf" ]]; then
-        cp /etc/v2a/alone_backup.conf ${nginxConfigPath}alone.conf
+    if [[ "$1" == "restoreBackup" ]] && [[ -f "/etc/v2ray-agent/alone_backup.conf" ]]; then
+        cp /etc/v2ray-agent/alone_backup.conf ${nginxConfigPath}alone.conf
         echoContent green "    vmess://${qrCodeBase64Default}\n"
-        rm /etc/v2a/alone_backup.conf
+        rm /etc/v2ray-agent/alone_backup.conf
     fi
 
 }
@@ -6526,14 +6531,14 @@ unInstall() {
     # rm -rf /root/.acme.sh
 
     #rm -rf /tmp/v2a-tls/*
-    # if [[ -d "/etc/v2a/tls" ]] && [[ -n $(find /etc/v2a/tls/ -name "*.key") ]] && [[ -n $(find /etc/v2a/tls/ -name "*.crt") ]]; then
-    # mv /etc/v2a/tls /tmp/v2a-tls
+    # if [[ -d "/etc/v2ray-agent/tls" ]] && [[ -n $(find /etc/v2ray-agent/tls/ -name "*.key") ]] && [[ -n $(find /etc/v2ray-agent/tls/ -name "*.crt") ]]; then
+    # mv /etc/v2ray-agent/tls /tmp/v2a-tls
     # if [[ -n $(find /tmp/v2a-tls -name '*.key') ]]; then
     # echoContent yellow " ---> Backup certificate successful, please save it. [/tmp/v2a-tls]"
     #fi
     #fi
 
-    rm -rf /etc/v2a
+    rm -rf /etc/v2ray-agent
     rm -rf ${nginxConfigPath}alone.conf
     rm -rf ${nginxConfigPath}checkPortOpen.conf >/dev/null 2>&1
     rm -rf "${nginxConfigPath}sing_box_VMess_HTTPUpgrade.conf" >/dev/null 2>&1
@@ -6548,7 +6553,8 @@ unInstall() {
 
     rm -rf /usr/bin/vasma
     rm -rf /usr/sbin/vasma
-        echoContent green "    hysteria://${currentHost}:${hysteriaPort}?${mport}protocol=${hysteriaProtocol}&auth=${id}&peer=${currentHost}&insecure=0&alpn=h3&upmbps=${hysteriaClientUploadSpeed}&downmbps=${hysteriaClientDownloadSpeed}#${hysteriaEmail}\n"
+        echoContent green " ---> Shortcut uninstall complete"
+        echoContent green " ---> v2a script uninstall complete"
 }
 
 manageCDN() {
@@ -6586,15 +6592,15 @@ manageCDN() {
         read -r -p "Enter the custom CDN IP or domain:" setCDNDomain
             ;;
         6)
-            echo >/etc/v2a/cdn
-        echoContent green "${v2rayNConf}\n"
+            echo >/etc/v2ray-agent/cdn
+        echoContent green " ---> Removed successfully"
             exit 0
             ;;
         esac
 
         if [[ -n "${setCDNDomain}" ]]; then
-            echo >/etc/v2a/cdn
-            echo "${setCDNDomain}" >"/etc/v2a/cdn"
+            echo >/etc/v2ray-agent/cdn
+            echo "${setCDNDomain}" >"/etc/v2ray-agent/cdn"
             subscribe false false
         else
     echoContent red "================================================== ==============="
@@ -6868,7 +6874,6 @@ addUser() {
         fi
     done
     commitAccountTransaction || return 1
-        echoContent green "    vless://${id}@$(getPublicIP):${currentRealityPort}?encryption=none&security=reality&type=tcp&sni=${currentRealityServerNames}&fp=chrome&pbk=${currentRealityPublicKey}&sid=6ba85179e30d4fc2&flow=xtls-rprx-vision#${email}\n"
     readNginxSubscribe
     if [[ -n "${subscribePort}" ]]; then
         subscribe false
@@ -7012,19 +7017,31 @@ removeUser() {
 # update script
 updateV2RayAgent() {
         echoContent skyBlue "\n================================  Tuic TLS  ================================\n"
-    rm -rf /etc/v2a/install.sh
-    if ! downloadFile /etc/v2a/ "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"; then
+    rm -rf /etc/v2ray-agent/install.sh
+    if ! downloadFile /etc/v2ray-agent/ "https://raw.githubusercontent.com/mcogh/v2a/master/install.sh"; then
         echoContent red "\n ---> Failed to download the latest script\n"
         return 1
     fi
 
-    sudo chmod 700 /etc/v2a/install.sh
+    sudo chmod 700 /etc/v2ray-agent/install.sh
     local version
-    version=$(grep '当前版本：v' "/etc/v2a/install.sh" | awk -F "[v]" '{print $2}' | tail -n +2 | head -n 1 | awk -F "[\"]" '{print $1}')
+    version=$(grep '当前版本：v' "/etc/v2ray-agent/install.sh" | awk -F "[v]" '{print $2}' | tail -n +2 | head -n 1 | awk -F "[\"]" '{print $1}')
 
     echoContent green "\n ---> Update completed"
     echoContent yellow " ---> Please manually execute [vasma] to open the script"
     echoContent green " ---> Current version: ${version}\n"
+
+    # P2-11: automatically rebuild subscriptions after script update (if configured)
+    readNginxSubscribe
+    if [[ -n "${subscribePort}" ]]; then
+        echoContent yellow " ---> Subscription configured, automatically rebuilding...\n"
+        if bash /etc/v2ray-agent/install.sh rebuild-subscribe; then
+            echoContent green " ---> Subscription rebuilt"
+        else
+            echoContent red " ---> Subscription rebuild failed, please run [View subscription] manually"
+        fi
+    fi
+
     echoContent yellow "If the update fails, please manually execute the following command\n"
     echoContent skyBlue "wget -P /root -N https://raw.githubusercontent.com/mcogh/v2a/master/install.sh && chmod 700 /root/install.sh && /root/install.sh"
     echo
@@ -7036,14 +7053,13 @@ handleFirewall() {
     if systemctl status ufw 2>/dev/null | grep -q "active (exited)" && [[ "$1" == "stop" ]]; then
         systemctl stop ufw >/dev/null 2>&1
         systemctl disable ufw >/dev/null 2>&1
-        echoContent green "    vless://${id}@$(getPublicIP):${currentRealityPort}?encryption=none&security=reality&type=grpc&sni=${currentRealityServerNames}&fp=chrome&pbk=${currentRealityPublicKey}&sid=6ba85179e30d4fc2&path=grpc&serviceName=grpc#${email}\n"
 
     fi
 
     if systemctl status firewalld 2>/dev/null | grep -q "active (running)" && [[ "$1" == "stop" ]]; then
         systemctl stop firewalld >/dev/null 2>&1
         systemctl disable firewalld >/dev/null 2>&1
-        echoContent green "Protocol type: VLESS reality, serviceName: grpc, address: $(getPublicIP), publicKey: ${currentRealityPublicKey}, shortId: 6ba85179e30d4fc2, serverNames: ${currentRealityServerNames}, port: ${currentRealityPort}, user ID: ${id}, transmission method: gRPC, client-fingerprint: chrome, account name: ${email}\n"
+        echoContent green " ---> firewalld disabled successfully"
     fi
 }
 
@@ -7094,7 +7110,7 @@ checkLog() {
         logStatus=true
     fi
 
-                echoContent skyBlue "\n --->Account:${tuicEmail}_tuic"
+    echoContent skyBlue "\nFunction $1/${totalProgress}: View logs"
     echoContent red "\n=============================================================="
     echoContent yellow "9.404 automatically jumps to baidu"
 
@@ -7159,13 +7175,13 @@ EOF
         tail -f "${configPathLog}error.log"
         ;;
     4)
-        if [[ ! -f "/etc/v2a/crontab_tls.log" ]]; then
-            touch /etc/v2a/crontab_tls.log
+        if [[ ! -f "/etc/v2ray-agent/crontab_tls.log" ]]; then
+            touch /etc/v2ray-agent/crontab_tls.log
         fi
-        tail -n 100 /etc/v2a/crontab_tls.log
+        tail -n 100 /etc/v2ray-agent/crontab_tls.log
         ;;
     5)
-        tail -n 100 /etc/v2a/tls/acme.log
+        tail -n 100 /etc/v2ray-agent/tls/acme.log
         ;;
     6)
         echo >"${configPathLog}access.log"
@@ -7177,12 +7193,12 @@ EOF
 # Script shortcut
 aliasInstall() {
 
-    if [[ -f "$HOME/install.sh" ]] && [[ -d "/etc/v2a" ]] && grep <"$HOME/install.sh" -qE "作者：mcogh|Author: mcogh"; then
-        mv "$HOME/install.sh" /etc/v2a/install.sh
+    if [[ -f "$HOME/install.sh" ]] && [[ -d "/etc/v2ray-agent" ]] && grep <"$HOME/install.sh" -qE "作者：mcogh|Author: mcogh"; then
+        mv "$HOME/install.sh" /etc/v2ray-agent/install.sh
         local vasmaType=
         if [[ -d "/usr/bin/" ]]; then
             if [[ ! -f "/usr/bin/vasma" ]]; then
-                ln -s /etc/v2a/install.sh /usr/bin/vasma
+                ln -s /etc/v2ray-agent/install.sh /usr/bin/vasma
                 chmod 700 /usr/bin/vasma
                 vasmaType=true
             fi
@@ -7190,7 +7206,7 @@ aliasInstall() {
             rm -rf "$HOME/install.sh"
         elif [[ -d "/usr/sbin" ]]; then
             if [[ ! -f "/usr/sbin/vasma" ]]; then
-                ln -s /etc/v2a/install.sh /usr/sbin/vasma
+                ln -s /etc/v2ray-agent/install.sh /usr/sbin/vasma
                 chmod 700 /usr/sbin/vasma
                 vasmaType=true
             fi
@@ -7251,7 +7267,7 @@ ipv6Routing() {
             addSingBoxOutbound IPv4_out
         fi
 
-        echoContent green "${v2rayNConf}"
+        echoContent green " ---> Added successfully"
 
     elif [[ "${ipv6Status}" == "3" ]]; then
 
@@ -7724,7 +7740,7 @@ EOF
     echoContent yellow "5.View certificate installation log"
         else
             local matchedRuleValue
-            matchedRuleValue=$(getDLCMatchedRuleValue "${line}" "/etc/v2a/xray")
+            matchedRuleValue=$(getDLCMatchedRuleValue "${line}" "/etc/v2ray-agent/xray")
             routingRule=$(echo "${routingRule}" | jq -r --arg rule "${matchedRuleValue}" '.domain += [$rule]')
         fi
     done < <(echo "${domain}" | tr ',' '\n')
@@ -7902,21 +7918,21 @@ installSniffing() {
 
 # Read third-party warp configuration
 readConfigWarpReg() {
-    if [[ ! -f "/etc/v2a/warp/config" ]]; then
-        /etc/v2a/warp/warp-reg >/etc/v2a/warp/config
+    if [[ ! -f "/etc/v2ray-agent/warp/config" ]]; then
+        /etc/v2ray-agent/warp/warp-reg >/etc/v2ray-agent/warp/config
     fi
 
-    secretKeyWarpReg=$(grep <"/etc/v2a/warp/config" private_key | awk '{print $2}')
+    secretKeyWarpReg=$(grep <"/etc/v2ray-agent/warp/config" private_key | awk '{print $2}')
 
-    addressWarpReg=$(grep <"/etc/v2a/warp/config" v6 | awk '{print $2}')
+    addressWarpReg=$(grep <"/etc/v2ray-agent/warp/config" v6 | awk '{print $2}')
 
-    publicKeyWarpReg=$(grep <"/etc/v2a/warp/config" public_key | awk '{print $2}')
+    publicKeyWarpReg=$(grep <"/etc/v2ray-agent/warp/config" public_key | awk '{print $2}')
 
-    reservedWarpReg=$(grep <"/etc/v2a/warp/config" reserved | awk -F "[:]" '{print $2}')
+    reservedWarpReg=$(grep <"/etc/v2ray-agent/warp/config" reserved | awk -F "[:]" '{print $2}')
 
 }
 installWarpReg() {
-    if [[ ! -f "/etc/v2a/warp/warp-reg" ]]; then
+    if [[ ! -f "/etc/v2ray-agent/warp/warp-reg" ]]; then
         echo
     echoContent yellow "1.View the diverted domain name"
     echoContent yellow "2.Add domain name"
@@ -7926,8 +7942,8 @@ installWarpReg() {
 
         if [[ "${installWarpRegStatus}" == "y" ]]; then
 
-            curl -sLo /etc/v2a/warp/warp-reg "https://github.com/badafans/warp-reg/releases/download/v1.0/${warpRegCoreCPUVendor}"
-            chmod 655 /etc/v2a/warp/warp-reg
+            curl -sLo /etc/v2ray-agent/warp/warp-reg "https://github.com/badafans/warp-reg/releases/download/v1.0/${warpRegCoreCPUVendor}"
+            chmod 655 /etc/v2ray-agent/warp/warp-reg
 
         else
     echoContent yellow "4.Uninstall IPv6 offloading"
@@ -7997,11 +8013,11 @@ unInstallWireGuard() {
 
         if [[ "${type}" == "IPv4" ]]; then
             if [[ ! -f "${configPath}wireguard_out_IPv6.json" ]]; then
-                rm -rf /etc/v2a/warp/config >/dev/null 2>&1
+                rm -rf /etc/v2ray-agent/warp/config >/dev/null 2>&1
             fi
         elif [[ "${type}" == "IPv6" ]]; then
             if [[ ! -f "${configPath}wireguard_out_IPv4.json" ]]; then
-                rm -rf /etc/v2a/warp/config >/dev/null 2>&1
+                rm -rf /etc/v2ray-agent/warp/config >/dev/null 2>&1
             fi
         fi
     fi
@@ -8009,7 +8025,7 @@ unInstallWireGuard() {
     if [[ -n "${singBoxConfigPath}" ]]; then
         if [[ ! -f "${singBoxConfigPath}wireguard_endpoints_IPv6_route.json" && ! -f "${singBoxConfigPath}wireguard_endpoints_IPv4_route.json" ]]; then
             rm "${singBoxConfigPath}wireguard_outbound.json" >/dev/null 2>&1
-            rm -rf /etc/v2a/warp/config >/dev/null 2>&1
+            rm -rf /etc/v2ray-agent/warp/config >/dev/null 2>&1
         fi
     fi
 }
@@ -8463,9 +8479,9 @@ setSocks5Inbound() {
     read -r -p 'UUID:' socks5RoutingUUID
     if [[ -z "${socks5RoutingUUID}" ]]; then
         if [[ "${coreInstallType}" == "1" ]]; then
-            socks5RoutingUUID=$(/etc/v2a/xray/xray uuid)
+            socks5RoutingUUID=$(/etc/v2ray-agent/xray/xray uuid)
         elif [[ -n "${singBoxConfigPath}" ]]; then
-            socks5RoutingUUID=$(/etc/v2a/sing-box/sing-box generate uuid)
+            socks5RoutingUUID=$(/etc/v2ray-agent/sing-box/sing-box generate uuid)
         fi
     fi
     echo
@@ -8487,7 +8503,7 @@ setSocks5Inbound() {
         echoContent red " ---> Wrong selection"
         exit 0
     fi
-    cat <<EOF >/etc/v2a/sing-box/conf/config/20_socks5_inbounds.json
+    cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/20_socks5_inbounds.json
 {
     "inbounds":[
         {
@@ -8520,7 +8536,7 @@ initSingBoxRules() {
             domainRules=$(echo "${domainRules}" | jq -r --arg reg ".*${escapedDomain}.*" '. += [$reg]')
         else
             local matchedRuleName
-            matchedRuleName=$(getDLCGeositeName "${normalizedLine}" "/etc/v2a/sing-box")
+            matchedRuleName=$(getDLCGeositeName "${normalizedLine}" "/etc/v2ray-agent/sing-box")
 
             if [[ -n "${matchedRuleName}" ]]; then
                 ruleSet=$(echo "${ruleSet}" | jq -r ". += [{\"tag\":\"${matchedRuleName}_$2\",\"type\":\"remote\",\"format\":\"binary\",\"url\":\"https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-${matchedRuleName}.srs\",\"http_client\":\"rule_set_http\"}]")
@@ -8534,7 +8550,7 @@ initSingBoxRules() {
 
 setSocks5InboundRouting() {
 
-    singBoxConfigPath=/etc/v2a/sing-box/conf/config/
+    singBoxConfigPath=/etc/v2ray-agent/sing-box/conf/config/
 
     if [[ "$1" == "addRules" && ! -f "${singBoxConfigPath}socks5_02_inbound_route.json" && ! -f "${configPath}09_routing.json" ]]; then
             echoContent red " ---> UUID cannot be repeated"
@@ -8594,7 +8610,7 @@ setSocks5InboundRouting() {
 setSniffRouting() {
     initSingBoxLocalDNSConfig
 
-    cat <<EOF >"/etc/v2a/sing-box/conf/config/sniff.json"
+    cat <<EOF >"/etc/v2ray-agent/sing-box/conf/config/sniff.json"
 {
     "route":{
         "default_domain_resolver": "local",
@@ -8616,7 +8632,7 @@ EOF
 setStrategyRouting() {
     local tag=$1
     local strategy=$2
-    cat <<EOF >"/etc/v2a/sing-box/conf/config/strategy_${strategy}_${tag}.json"
+    cat <<EOF >"/etc/v2ray-agent/sing-box/conf/config/strategy_${strategy}_${tag}.json"
 {
     "route":{
         "rules":[
@@ -8710,7 +8726,7 @@ setSocks5OutboundRouting() {
     echoContent yellow "Input example:netflix,openai\n"
             else
                 local matchedRuleValue
-                matchedRuleValue=$(getDLCMatchedRuleValue "${line}" "/etc/v2a/xray")
+                matchedRuleValue=$(getDLCMatchedRuleValue "${line}" "/etc/v2ray-agent/xray")
                 domainRules=$(echo "${domainRules}" | jq -r --arg rule "${matchedRuleValue}" '. += [$rule]')
             fi
         done < <(echo "${socks5RoutingOutboundDomain}" | tr ',' '\n')
@@ -8861,7 +8877,7 @@ setUnlockSNI() {
             local hosts={}
             while read -r domain; do
                 local matchedRuleValue
-                matchedRuleValue=$(getDLCMatchedRuleValue "${domain}" "/etc/v2a/xray")
+                matchedRuleValue=$(getDLCMatchedRuleValue "${domain}" "/etc/v2ray-agent/xray")
                 hosts=$(echo "${hosts}" | jq -r --arg key "${matchedRuleValue}" --arg value "${setSNIP}" '. + {($key):$value}')
             done < <(echo "${xrayDomainList}" | tr ',' '\n')
             cat <<EOF >${configPath}11_dns.json
@@ -8895,7 +8911,7 @@ addXrayDNSConfig() {
     local domains=[]
     while read -r line; do
         local matchedRuleValue
-        matchedRuleValue=$(getDLCMatchedRuleValue "${line}" "/etc/v2a/xray")
+        matchedRuleValue=$(getDLCMatchedRuleValue "${line}" "/etc/v2ray-agent/xray")
         domains=$(echo "${domains}" | jq -r --arg rule "${matchedRuleValue}" '. += [$rule]')
     done < <(echo "${domainList}" | tr ',' '\n')
 
@@ -9423,8 +9439,8 @@ cronFunction() {
         renewalTLS
         exit 0
     elif [[ "${cronName}" == "UpdateGeo" ]]; then
-        updateGeoSite >>/etc/v2a/crontab_updateGeoSite.log
-        echoContent green " ---> geo update date: $(date "+%F %H:%M:%S")" >>/etc/v2a/crontab_updateGeoSite.log
+        updateGeoSite >>/etc/v2ray-agent/crontab_updateGeoSite.log
+        echoContent green " ---> geo update date: $(date "+%F %H:%M:%S")" >>/etc/v2ray-agent/crontab_updateGeoSite.log
         exit 0
     fi
 }
@@ -9515,7 +9531,7 @@ installSubscribe() {
 
             SSLType="ssl"
             serverName="server_name ${subscribeServerName};"
-            nginxSubscribeSSL="ssl_certificate /etc/v2a/tls/${subscribeServerName}.crt;ssl_certificate_key /etc/v2a/tls/${subscribeServerName}.key;"
+            nginxSubscribeSSL="ssl_certificate /etc/v2ray-agent/tls/${subscribeServerName}.crt;ssl_certificate_key /etc/v2ray-agent/tls/${subscribeServerName}.key;"
         fi
         if [[ -n "$(curl --connect-timeout 2 -s -6 http://www.cloudflare.com/cdn-cgi/trace | grep "ip" | cut -d "=" -f 2)" ]]; then
             listenIPv6="listen [::]:${result[-1]} ${SSLType};"
@@ -9541,7 +9557,7 @@ server {
     root ${nginxStaticPath};
     location ~ ^/s/(clashMeta|default|clashMetaProfiles|sing-box|sing-box_profiles)/(.*) {
         default_type 'text/plain; charset=utf-8';
-        alias /etc/v2a/subscribe/\$1/\$2;
+        alias /etc/v2ray-agent/subscribe/\$1/\$2;
     }
     location / {
     }
@@ -9569,18 +9585,18 @@ addSubscribeMenu() {
     if [[ "${addSubscribeStatus}" == "1" ]]; then
         addOtherSubscribe
     elif [[ "${addSubscribeStatus}" == "2" ]]; then
-        if [[ ! -f "/etc/v2a/subscribe_remote/remoteSubscribeUrl" ]]; then
+        if [[ ! -f "/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl" ]]; then
         echoContent green " ---> Domestic domain name + IP blocked successfully"
             exit 0
         fi
-        grep -v '^$' "/etc/v2a/subscribe_remote/remoteSubscribeUrl" | awk '{print NR""":"$0}'
+        grep -v '^$' "/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl" | awk '{print NR""":"$0}'
         read -r -p "Select the subscription number to delete [single selection only]:" delSubscribeIndex
         if [[ -z "${delSubscribeIndex}" ]]; then
         echoContent green " ---> Domain blacklist/whitelist deleted successfully"
             exit 0
         fi
 
-        sed -i "$((delSubscribeIndex))d" "/etc/v2a/subscribe_remote/remoteSubscribeUrl" >/dev/null 2>&1
+        sed -i "$((delSubscribeIndex))d" "/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl" >/dev/null 2>&1
 
         echoContent green " ---> Blocked IP added successfully"
         subscribe
@@ -9599,7 +9615,7 @@ addOtherSubscribe() {
     echoContent red "=============================================================="
     else
 
-        if [[ -f "/etc/v2a/subscribe_remote/remoteSubscribeUrl" ]] && grep -q "${remoteSubscribeUrl}" /etc/v2a/subscribe_remote/remoteSubscribeUrl; then
+        if [[ -f "/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl" ]] && grep -q "${remoteSubscribeUrl}" /etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl; then
     echoContent red "\n================================================ ================="
             exit 0
         fi
@@ -9608,7 +9624,7 @@ addOtherSubscribe() {
         if [[ "${httpSubscribeStatus}" == "y" ]]; then
             remoteSubscribeUrl="${remoteSubscribeUrl}:http"
         fi
-        echo "${remoteSubscribeUrl}" >>/etc/v2a/subscribe_remote/remoteSubscribeUrl
+        echo "${remoteSubscribeUrl}" >>/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl
         subscribe
     fi
 }
@@ -9616,7 +9632,7 @@ addOtherSubscribe() {
 clashMetaConfig() {
     local url=$1
     local id=$2
-    cat <<EOF >"/etc/v2a/subscribe/clashMetaProfiles/${id}"
+    cat <<EOF >"/etc/v2ray-agent/subscribe/clashMetaProfiles/${id}"
 log-level: debug
 mode: rule
 ipv6: true
@@ -10024,16 +10040,16 @@ subscribe() {
     echoContent red "================================================== ==============="
     echoContent yellow "1.Add"
 
-        if [[ -f "/etc/v2a/subscribe_local/subscribeSalt" && -n $(cat "/etc/v2a/subscribe_local/subscribeSalt") ]]; then
+        if [[ -f "/etc/v2ray-agent/subscribe_local/subscribeSalt" && -n $(cat "/etc/v2ray-agent/subscribe_local/subscribeSalt") ]]; then
             if [[ -z "${renewSalt}" ]]; then
             read -r -p "Read the Salt set by the last installation. Do you want to use the Salt generated last time? [y/n]:" historySaltStatus
                 if [[ "${historySaltStatus}" == "y" ]]; then
-                    subscribeSalt=$(cat /etc/v2a/subscribe_local/subscribeSalt)
+                    subscribeSalt=$(cat /etc/v2ray-agent/subscribe_local/subscribeSalt)
                 else
                 read -r -p "Please enter the salt value, [Enter] use random:" subscribeSalt
                 fi
             else
-                subscribeSalt=$(cat /etc/v2a/subscribe_local/subscribeSalt)
+                subscribeSalt=$(cat /etc/v2ray-agent/subscribe_local/subscribeSalt)
             fi
         else
             read -r -p "Please enter the salt value, [Enter] use random:" subscribeSalt
@@ -10045,16 +10061,16 @@ subscribe() {
         fi
         echoContent yellow "\n ---> Salt: ${subscribeSalt}"
 
-        echo "${subscribeSalt}" >/etc/v2a/subscribe_local/subscribeSalt
+        echo "${subscribeSalt}" >/etc/v2ray-agent/subscribe_local/subscribeSalt
 
-        rm -rf /etc/v2a/subscribe/default/*
-        rm -rf /etc/v2a/subscribe/clashMeta/*
-        rm -rf /etc/v2a/subscribe_local/default/*
-        rm -rf /etc/v2a/subscribe_local/clashMeta/*
-        rm -rf /etc/v2a/subscribe_local/sing-box/*
+        rm -rf /etc/v2ray-agent/subscribe/default/*
+        rm -rf /etc/v2ray-agent/subscribe/clashMeta/*
+        rm -rf /etc/v2ray-agent/subscribe_local/default/*
+        rm -rf /etc/v2ray-agent/subscribe_local/clashMeta/*
+        rm -rf /etc/v2ray-agent/subscribe_local/sing-box/*
         showAccounts >/dev/null
-        if [[ -n $(ls /etc/v2a/subscribe_local/default/) ]]; then
-            if [[ -f "/etc/v2a/subscribe_remote/remoteSubscribeUrl" && -n $(cat "/etc/v2a/subscribe_remote/remoteSubscribeUrl") ]]; then
+        if [[ -n $(ls /etc/v2ray-agent/subscribe_local/default/) ]]; then
+            if [[ -f "/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl" && -n $(cat "/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl") ]]; then
                 if [[ -z "${renewSalt}" ]]; then
                     read -r -p "Other subscriptions found. Update them? [y/n]" updateOtherSubscribeStatus
                 else
@@ -10062,20 +10078,20 @@ subscribe() {
                 fi
             fi
             local subscribePortLocal="${subscribePort}"
-            find /etc/v2a/subscribe_local/default/* | while read -r email; do
+            find /etc/v2ray-agent/subscribe_local/default/* | while read -r email; do
                 email=$(echo "${email}" | awk -F "[d][e][f][a][u][l][t][/]" '{print $2}')
 
                 # md5 encryption
                 local emailMd5=
                 emailMd5=$(echo -n "${email}${subscribeSalt}"$'\n' | md5sum | awk '{print $1}')
 
-                cat "/etc/v2a/subscribe_local/default/${email}" >>"/etc/v2a/subscribe/default/${emailMd5}"
+                cat "/etc/v2ray-agent/subscribe_local/default/${email}" >>"/etc/v2ray-agent/subscribe/default/${emailMd5}"
                 if [[ "${updateOtherSubscribeStatus}" == "y" ]]; then
                     updateRemoteSubscribe "${emailMd5}" "${email}"
                 fi
                 local base64Result
-                base64Result=$(base64 -w 0 "/etc/v2a/subscribe/default/${emailMd5}")
-                echo "${base64Result}" >"/etc/v2a/subscribe/default/${emailMd5}"
+                base64Result=$(base64 -w 0 "/etc/v2ray-agent/subscribe/default/${emailMd5}")
+                echo "${base64Result}" >"/etc/v2ray-agent/subscribe/default/${emailMd5}"
                 echoContent yellow "--------------------------------------------------------------"
                 local currentDomain=${currentHost}
 
@@ -10084,7 +10100,7 @@ subscribe() {
                 fi
                 if [[ -n "${subscribePortLocal}" ]]; then
                     if [[ "${subscribeType}" == "http" ]]; then
-                        currentDomain="$(getPublicIP):${subscribePort}"
+                        currentDomain="$(getPublicIP "" force):${subscribePort}"
                     else
                         currentDomain="${currentHost}:${subscribePort}"
                     fi
@@ -10096,11 +10112,11 @@ subscribe() {
                     showQRCode "${subscribeType}://${currentDomain}/s/default/${emailMd5}"
 
                     #clashMeta
-                    if [[ -f "/etc/v2a/subscribe_local/clashMeta/${email}" ]]; then
+                    if [[ -f "/etc/v2ray-agent/subscribe_local/clashMeta/${email}" ]]; then
 
-                        cat "/etc/v2a/subscribe_local/clashMeta/${email}" >>"/etc/v2a/subscribe/clashMeta/${emailMd5}"
+                        cat "/etc/v2ray-agent/subscribe_local/clashMeta/${email}" >>"/etc/v2ray-agent/subscribe/clashMeta/${emailMd5}"
 
-                        sed -i '1i\proxies:' "/etc/v2a/subscribe/clashMeta/${emailMd5}"
+                        sed -i '1i\proxies:' "/etc/v2ray-agent/subscribe/clashMeta/${emailMd5}"
 
                         local clashProxyUrl="${subscribeType}://${currentDomain}/s/clashMeta/${emailMd5}"
                         clashMetaConfig "${clashProxyUrl}" "${emailMd5}"
@@ -10110,18 +10126,18 @@ subscribe() {
 
                     fi
                     # sing-box
-                    if [[ -f "/etc/v2a/subscribe_local/sing-box/${email}" ]]; then
-                        cp "/etc/v2a/subscribe_local/sing-box/${email}" "/etc/v2a/subscribe/sing-box_profiles/${emailMd5}"
+                    if [[ -f "/etc/v2ray-agent/subscribe_local/sing-box/${email}" ]]; then
+                        cp "/etc/v2ray-agent/subscribe_local/sing-box/${email}" "/etc/v2ray-agent/subscribe/sing-box_profiles/${emailMd5}"
 
                         echoContent skyBlue " ---> Download sing-box universal configuration file"
                         if [[ "${release}" == "alpine" ]]; then
-                            wget -O "/etc/v2a/subscribe/sing-box/${emailMd5}" -q "https://raw.githubusercontent.com/mcogh/v2a/master/documents/sing-box.json"
+                            wget -O "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}" -q "https://raw.githubusercontent.com/mcogh/v2a/master/documents/sing-box.json"
                         else
-                            wget -O "/etc/v2a/subscribe/sing-box/${emailMd5}" -q "${wgetShowProgressStatus}" "https://raw.githubusercontent.com/mcogh/v2a/master/documents/sing-box.json"
+                            wget -O "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}" -q "${wgetShowProgressStatus}" "https://raw.githubusercontent.com/mcogh/v2a/master/documents/sing-box.json"
                         fi
 
-                        jq ".outbounds=$(jq ".outbounds|map(if has(\"outbounds\") then .outbounds += $(jq ".|map(.tag)" "/etc/v2a/subscribe_local/sing-box/${email}") else . end)" "/etc/v2a/subscribe/sing-box/${emailMd5}")" "/etc/v2a/subscribe/sing-box/${emailMd5}" >"/etc/v2a/subscribe/sing-box/${emailMd5}_tmp" && mv "/etc/v2a/subscribe/sing-box/${emailMd5}_tmp" "/etc/v2a/subscribe/sing-box/${emailMd5}"
-                        jq ".outbounds += $(jq '.' "/etc/v2a/subscribe_local/sing-box/${email}")" "/etc/v2a/subscribe/sing-box/${emailMd5}" >"/etc/v2a/subscribe/sing-box/${emailMd5}_tmp" && mv "/etc/v2a/subscribe/sing-box/${emailMd5}_tmp" "/etc/v2a/subscribe/sing-box/${emailMd5}"
+                        jq ".outbounds=$(jq ".outbounds|map(if has(\"outbounds\") then .outbounds += $(jq ".|map(.tag)" "/etc/v2ray-agent/subscribe_local/sing-box/${email}") else . end)" "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}")" "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}" >"/etc/v2ray-agent/subscribe/sing-box/${emailMd5}_tmp" && mv "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}_tmp" "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}"
+                        jq ".outbounds += $(jq '.' "/etc/v2ray-agent/subscribe_local/sing-box/${email}")" "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}" >"/etc/v2ray-agent/subscribe/sing-box/${emailMd5}_tmp" && mv "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}_tmp" "/etc/v2ray-agent/subscribe/sing-box/${emailMd5}"
 
                         echoContent skyBlue "\n----------sing-box subscription----------\n"
                         echoContent yellow "url:${subscribeType}://${currentDomain}/s/sing-box/${emailMd5}\n"
@@ -10167,7 +10183,7 @@ updateRemoteSubscribe() {
         clashMetaProxies=$(curl -s "${subscribeType}://${remoteUrl}/s/clashMeta/${emailMD5}" | sed '/proxies:/d' | sed "s/\"${email}/\"${email}_${serverAlias}/g")
 
         if ! echo "${clashMetaProxies}" | grep -q "nginx" && [[ -n "${clashMetaProxies}" ]]; then
-            echo "${clashMetaProxies}" >>"/etc/v2a/subscribe/clashMeta/${emailMD5}"
+            echo "${clashMetaProxies}" >>"/etc/v2ray-agent/subscribe/clashMeta/${emailMD5}"
         echoContent green " ---> Added successfully"
         else
         echoContent red " ---> Wrong selection"
@@ -10178,7 +10194,7 @@ updateRemoteSubscribe() {
 
         if ! echo "${default}" | grep -q "nginx" && [[ -n "${default}" ]]; then
             default=$(echo "${default}" | base64 -d | sed "s/#${email}/#${email}_${serverAlias}/g")
-            echo "${default}" >>"/etc/v2a/subscribe/default/${emailMD5}"
+            echo "${default}" >>"/etc/v2ray-agent/subscribe/default/${emailMD5}"
 
             echoContent green " ---> WARP global outbound setting successful"
         else
@@ -10190,15 +10206,15 @@ updateRemoteSubscribe() {
 
         if ! echo "${singBoxSubscribe}" | grep -q "nginx" && [[ -n "${singBoxSubscribe}" ]]; then
             singBoxSubscribe=${singBoxSubscribe//tag\": \"${email}/tag\": \"${email}_${serverAlias}}
-            singBoxSubscribe=$(jq ". +=${singBoxSubscribe}" "/etc/v2a/subscribe_local/sing-box/${email}")
-            echo "${singBoxSubscribe}" | jq . >"/etc/v2a/subscribe_local/sing-box/${email}"
+            singBoxSubscribe=$(jq ". +=${singBoxSubscribe}" "/etc/v2ray-agent/subscribe_local/sing-box/${email}")
+            echo "${singBoxSubscribe}" | jq . >"/etc/v2ray-agent/subscribe_local/sing-box/${email}"
 
             echoContent green " ---> Abandon settings"
         else
     echoContent red "\n================================================ ================="
         fi
 
-    done < <(grep -v '^$' <"/etc/v2a/subscribe_remote/remoteSubscribeUrl")
+    done < <(grep -v '^$' <"/etc/v2ray-agent/subscribe_remote/remoteSubscribeUrl")
 }
 
 # switch alpn
@@ -10259,16 +10275,16 @@ initRealityKey() {
     fi
     if [[ -z "${realityPrivateKey}" ]]; then
         if [[ "${selectCoreType}" == "2" || "${coreInstallType}" == "2" ]]; then
-            realityX25519Key=$(/etc/v2a/sing-box/sing-box generate reality-keypair)
+            realityX25519Key=$(/etc/v2ray-agent/sing-box/sing-box generate reality-keypair)
             realityPrivateKey=$(echo "${realityX25519Key}" | head -1 | awk '{print $2}')
             realityPublicKey=$(echo "${realityX25519Key}" | tail -n 1 | awk '{print $2}')
-            echo "publicKey:${realityPublicKey}" >/etc/v2a/sing-box/conf/config/reality_key
+            echo "publicKey:${realityPublicKey}" >/etc/v2ray-agent/sing-box/conf/config/reality_key
         else
             read -r -p "Enter Private Key [Enter to generate automatically]:" historyPrivateKey
             if [[ -n "${historyPrivateKey}" ]]; then
-                realityX25519Key=$(/etc/v2a/xray/xray x25519 -i "${historyPrivateKey}")
+                realityX25519Key=$(/etc/v2ray-agent/xray/xray x25519 -i "${historyPrivateKey}")
             else
-                realityX25519Key=$(/etc/v2a/xray/xray x25519)
+                realityX25519Key=$(/etc/v2ray-agent/xray/xray x25519)
             fi
             realityPrivateKey=$(echo "${realityX25519Key}" | grep "PrivateKey" | awk '{print $2}')
             realityPublicKey=$(echo "${realityX25519Key}" | grep "Password" | awk '{print $3}')
@@ -10284,8 +10300,8 @@ initRealityKey() {
 }
 initRealityMldsa65() {
                     echoContent skyBlue "\n----------clashMeta subscription----------\n"
-    if /etc/v2a/xray/xray tls ping "${realityServerName}:${realityDomainPort}" 2>/dev/null | grep -q "X25519MLKEM768"; then
-        length=$(/etc/v2a/xray/xray tls ping "${realityServerName}:${realityDomainPort}" | grep "Certificate chain's total length:" | awk '{print $5}' | head -1)
+    if /etc/v2ray-agent/xray/xray tls ping "${realityServerName}:${realityDomainPort}" 2>/dev/null | grep -q "X25519MLKEM768"; then
+        length=$(/etc/v2ray-agent/xray/xray tls ping "${realityServerName}:${realityDomainPort}" | grep "Certificate chain's total length:" | awk '{print $5}' | head -1)
 
         if [ "$length" -gt 3500 ]; then
             if [[ -n "${currentRealityMldsa65Seed}" && -z "${lastInstallationConfig}" ]]; then
@@ -10300,12 +10316,12 @@ initRealityMldsa65() {
             fi
             if [[ -z "${realityMldsa65Seed}" ]]; then
                 #        if [[ "${selectCoreType}" == "2" || "${coreInstallType}" == "2" ]]; then
-                #            realityX25519Key=$(/etc/v2a/sing-box/sing-box generate reality-keypair)
+                #            realityX25519Key=$(/etc/v2ray-agent/sing-box/sing-box generate reality-keypair)
                 #            realityPrivateKey=$(echo "${realityX25519Key}" | head -1 | awk '{print $2}')
                 #            realityPublicKey=$(echo "${realityX25519Key}" | tail -n 1 | awk '{print $2}')
-                #            echo "publicKey:${realityPublicKey}" >/etc/v2a/sing-box/conf/config/reality_key
+                #            echo "publicKey:${realityPublicKey}" >/etc/v2ray-agent/sing-box/conf/config/reality_key
                 #        else
-                realityMldsa65=$(/etc/v2a/xray/xray mldsa65)
+                realityMldsa65=$(/etc/v2ray-agent/xray/xray mldsa65)
                 realityMldsa65Seed=$(echo "${realityMldsa65}" | head -1 | awk '{print $2}')
                 realityMldsa65Verify=$(echo "${realityMldsa65}" | tail -n 1 | awk '{print $2}')
                 #        fi
@@ -10548,10 +10564,10 @@ manageReality() {
 }
 
 installRealityScanner() {
-    if [[ ! -f "/etc/v2a/xray/reality_scan/RealiTLScanner-linux-64" ]]; then
+    if [[ ! -f "/etc/v2ray-agent/xray/reality_scan/RealiTLScanner-linux-64" ]]; then
         version=$(curl -s https://api.github.com/repos/XTLS/RealiTLScanner/releases?per_page=1 | jq -r '.[]|.tag_name')
-        wget -c -q -P /etc/v2a/xray/reality_scan/ "https://github.com/XTLS/RealiTLScanner/releases/download/${version}/RealiTLScanner-linux-64"
-        chmod 655 /etc/v2a/xray/reality_scan/RealiTLScanner-linux-64
+        wget -c -q -P /etc/v2ray-agent/xray/reality_scan/ "https://github.com/XTLS/RealiTLScanner/releases/download/${version}/RealiTLScanner-linux-64"
+        chmod 655 /etc/v2ray-agent/xray/reality_scan/RealiTLScanner-linux-64
     fi
 }
 # reality scanner
@@ -10588,7 +10604,7 @@ realityScanner() {
         read -r -p "Is the IP address correct? [y/n]:" ipStatus
     if [[ "${ipStatus}" == "y" ]]; then
         echoContent yellow "Input example: addons.mozilla.org\n"
-        /etc/v2a/xray/reality_scan/RealiTLScanner-linux-64 -addr "${publicIP}" | tee /etc/v2a/xray/reality_scan/result.log
+        /etc/v2ray-agent/xray/reality_scan/RealiTLScanner-linux-64 -addr "${publicIP}" | tee /etc/v2ray-agent/xray/reality_scan/result.log
     else
     echoContent red "================================================== ==============="
     fi
@@ -10598,8 +10614,8 @@ manageHysteria() {
     echoContent skyBlue "\n========================== Generate key ================= =========\n"
     echoContent red "\n=============================================================="
     local hysteria2Status=
-    if [[ -n "${singBoxConfigPath}" ]] && [[ -f "/etc/v2a/sing-box/conf/config/06_hysteria2_inbounds.json" ]]; then
-    echoContent yellow "\n ---> Available client domain names: ${realityServerNames}\n"
+    if [[ -n "${singBoxConfigPath}" ]] && [[ -f "/etc/v2ray-agent/sing-box/conf/config/06_hysteria2_inbounds.json" ]]; then
+        echoContent yellow "Depends on the third-party sing-box\n"
             echoContent yellow "Please enter the port [Enter random 10000-30000]"
         echoContent yellow "\n ---> Port: ${realityPort}"
         echoContent yellow "1.Reinstall"
@@ -10625,7 +10641,7 @@ manageTuic() {
         echoContent skyBlue "\n====== Generate a domain name with fallback configuration , for example : [addons.mozilla.org:443] ======\n"
     echoContent red "\n=============================================================="
     local tuicStatus=
-    if [[ -n "${singBoxConfigPath}" ]] && [[ -f "/etc/v2a/sing-box/conf/config/09_tuic_inbounds.json" ]]; then
+    if [[ -n "${singBoxConfigPath}" ]] && [[ -f "/etc/v2ray-agent/sing-box/conf/config/09_tuic_inbounds.json" ]]; then
         echoContent yellow "1.Installation"
         echoContent yellow "1.Reinstall"
         echoContent yellow "2.Uninstall"
@@ -10647,12 +10663,12 @@ manageTuic() {
     fi
 }
 singBoxLog() {
-    cat <<EOF >/etc/v2a/sing-box/conf/config/log.json
+    cat <<EOF >/etc/v2ray-agent/sing-box/conf/config/log.json
 {
   "log": {
     "disabled": $1,
     "level": "debug",
-    "output": "/etc/v2a/sing-box/conf/box.log",
+    "output": "/etc/v2ray-agent/sing-box/conf/box.log",
     "timestamp": true
   }
 }
@@ -10821,5 +10837,14 @@ menu() {
         ;;
     esac
 }
+
+# P2-11: non-interactive entry; rebuild subscriptions after a script update (only when already configured)
+if [[ "${1}" == "rebuild-subscribe" ]]; then
+    readNginxSubscribe
+    if [[ -n "${subscribePort}" ]]; then
+        subscribe false false
+    fi
+    exit 0
+fi
 cronFunction
 menu

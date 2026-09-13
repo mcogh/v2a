@@ -42,7 +42,7 @@ showQRCode() {
 # Defaults
 # ---------------------------------------------------------------------------
 nonInteractive=0
-dataDir="/etc/v2a/docker/"
+dataDir="/etc/v2ray-agent/docker/"
 installMode=""
 port=""
 xhttpPort=""
@@ -80,7 +80,7 @@ showHelp() {
     echoContent "white" ""
     echoContent "white" "Options:"
     echoContent "white" "  --non-interactive           Run non-interactively; all required values must be supplied via flags"
-    echoContent "white" "  --data-dir <path>           Persistent config/data directory (default: /etc/v2a/docker/)"
+    echoContent "white" "  --data-dir <path>           Persistent config/data directory (default: /etc/v2ray-agent/docker/)"
     echoContent "white" "  --install-mode <mode>       Install mode: vision / xhttp / all"
     echoContent "white" "  --port <port>               Vision or single-protocol external listen port (leave blank to pick randomly)"
     echoContent "white" "  --xhttp-port <port>         XHTTP mode port (leave blank to pick randomly)"
@@ -100,8 +100,8 @@ showHelp() {
     echoContent "white" "  2. If both are missing, it shows an install menu; if either exists, it shows user-management / reinstall / start-or-recreate options."
     echoContent "white" "  3. Install mode selects Reality Vision, Reality XHTTP, or both; XHTTP requires an additional path input."
     echoContent "white" "  4. Non-interactive mode requires all values explicitly; privateKey/uuid/email may still be auto-generated/derived."
-    echoContent "white" "  5. Data directory defaults to /etc/v2a/docker/; override with --data-dir for QA or custom paths."
-    echoContent "white" "  6. If the script is not running from /etc/v2a/docker_reality_en.sh, it will relocate itself and create the vasmad shortcut."
+    echoContent "white" "  5. Data directory defaults to /etc/v2ray-agent/docker/; override with --data-dir for QA or custom paths."
+    echoContent "white" "  6. If the script is not running from /etc/v2ray-agent/docker_reality_en.sh, it will relocate itself and create the vasmad shortcut."
     echoContent "white" ""
     echoContent "yellow" "QA / Testing:"
     echoContent "white" "  V2RAY_AGENT_FORCE_NO_DOCKER=1  Skip Docker availability check (test environments)"
@@ -783,7 +783,7 @@ checkEnvironment() {
 
 # selfInstallShortcut — mirror install.sh aliasInstall behavior for this standalone script and create the vasmad shortcut.
 selfInstallShortcut() {
-    local targetScript="/etc/v2a/docker_reality_en.sh"
+    local targetScript="/etc/v2ray-agent/docker_reality_en.sh"
     local currentScript=""
     local shortcutCreated="false"
 
@@ -796,7 +796,7 @@ selfInstallShortcut() {
         currentScript="$0"
     fi
 
-    mkdir -p /etc/v2a
+    mkdir -p /etc/v2ray-agent
 
     if [[ "${currentScript}" != "${targetScript}" ]]; then
         if ! mv "${currentScript}" "${targetScript}" 2>/dev/null; then
@@ -1573,7 +1573,7 @@ userManageMenu() {
 # uninstallDockerReality — remove the standalone Docker Reality container, data, script shortcut, and installed script copy.
 uninstallDockerReality() {
     local answer=""
-    local installedScript="/etc/v2a/docker_reality_en.sh"
+    local installedScript="/etc/v2ray-agent/docker_reality_en.sh"
 
     answer="$(promptValue $'Confirm uninstall of Docker Reality content? [y/N]: ' "")"
     case "${answer}" in
