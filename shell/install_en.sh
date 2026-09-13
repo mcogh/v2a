@@ -3692,6 +3692,13 @@ readPortHopping() {
 
             portHoppingStart=$(echo "${portHopping}" | cut -d ":" -f 1)
             portHoppingEnd=$(echo "${portHopping}" | cut -d ":" -f 2)
+        elif command -v nft >/dev/null 2>&1 && nft list chain ip nat PREROUTING 2>/dev/null | grep -q "dnat to :${targetPort}"; then
+            # nft path: extract the port range from nft rules (VPS2 has 3 duplicate rules, keep head -1)
+            local portHopping=
+            portHopping=$(nft list chain ip nat PREROUTING 2>/dev/null | grep "dnat to :${targetPort}" | head -1 | grep -oE "dport [0-9]+-[0-9]+" | awk '{print $2}' | sed 's/-/:/')
+
+            portHoppingStart=$(echo "${portHopping}" | cut -d ":" -f 1)
+            portHoppingEnd=$(echo "${portHopping}" | cut -d ":" -f 2)
         fi
     fi
     if [[ "${type}" == "hysteria2" ]]; then
