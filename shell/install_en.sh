@@ -412,6 +412,8 @@ xraySelectionNeedsNginx() {
 }
 
 xraySelectionNeedsCustomPort() {
+    # Empty selection = full install sentinel — those protocols all need custom ports.
+    [[ -z "${1:-}" ]] && return 0
     [[ "${1:-}" =~ ,(0|1|2|3|4|5), ]]
 }
 
@@ -10427,8 +10429,14 @@ initRealityClientServersName() {
         fi
     fi
 
-    realityDestDomain="${realityServerName}:${realityDomainPort}"
-    checkRealityDest
+    if [[ -z "${realityDestDomain}" ]]; then
+        realityDestDomain="${realityServerName}:${realityDomainPort}"
+    fi
+    # checkRealityDest only when sing-box core is selected (coreInstallType=2).
+    # Running it unconditionally causes unnecessary outbound HTTPS requests when installing xray-only.
+    if [[ "${coreInstallType}" == "2" || "${selectCoreType}" == "2" ]]; then
+        checkRealityDest
+    fi
 }
 initXrayRealityPort() {
     if [[ -n "${xrayVLESSRealityPort}" && -z "${lastInstallationConfig}" ]]; then
